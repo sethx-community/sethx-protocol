@@ -1,0 +1,17 @@
+node_modules/
+artifacts/
+cache/
+typechain-types/
+types/
+coverage/
+coverage.json
+
+.env
+.env.*
+!.env.example
+
+deployments/local/*.json
+deployments/testnet/*.json
+deployments/mainnet/*.json
+
+ignition/deployments/
