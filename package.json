@@ -10,7 +10,12 @@
     "test:token": "hardhat test test/token",
     "node": "hardhat node",
     "clean": "hardhat clean",
-    "deploy:local": "hardhat ignition deploy ignition/modules/local/local.module.ts --network localhost --parameters ignition/parameters/local.json --reset",
+    "deploy:local": "cross-env SETHX_DEPLOYMENT_ENVIRONMENT=local hardhat run scripts/run-deployment.ts --network localhost",
+    "deploy:testnet": "cross-env SETHX_DEPLOYMENT_ENVIRONMENT=testnet hardhat run scripts/run-deployment.ts --network testnet",
+    "deploy:mainnet": "cross-env SETHX_DEPLOYMENT_ENVIRONMENT=mainnet hardhat run scripts/run-deployment.ts --network mainnet",
+    "test:local": "hardhat test --network localhost",
+    "test:testnet": "hardhat test --network testnet",
+    "test:mainnet": "hardhat test --network mainnet",
     "verify:token": "hardhat run scripts/verify/verify-token-distribution.ts --network localhost"
   },
   "dependencies": {
@@ -27,6 +32,7 @@
     "@types/mocha": "^10.0.10",
     "chai": "^5.2.0",
     "chai-as-promised": "^8.0.1",
+    "cross-env": "^10.1.0",
     "ethers": "^6.16.0",
     "hardhat": "^3.1.6",
     "prettier": "^3.6.2",

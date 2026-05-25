@@ -1,8 +1,12 @@
 import { parseUnits } from "ethers";
-import type { DeploymentConfig } from "../config/types.js";
 
 export async function setupTokenDistribution(
-  config: DeploymentConfig,
+  parameters: {
+    token: {
+      totalSupplyWholeTokens: bigint;
+      founderAllocationBps: bigint;
+    };
+  },
   deployment: {
     sethxToken: any;
     addresses: {
@@ -12,10 +16,13 @@ export async function setupTokenDistribution(
   },
 ) {
   const totalSupply = parseUnits(
-    config.token.totalSupplyWholeTokens.toString(),
+    parameters.token.totalSupplyWholeTokens.toString(),
     18,
   );
-  const founderAmount = (totalSupply * config.token.founderBps) / 10_000n;
+
+  const founderAmount =
+    (totalSupply * parameters.token.founderAllocationBps) / 10_000n;
+
   const treasuryAmount = totalSupply - founderAmount;
 
   if (founderAmount <= 0n) throw new Error("Founder allocation is zero");
@@ -25,10 +32,12 @@ export async function setupTokenDistribution(
     deployment.addresses.founderTokenTimelock,
     founderAmount,
   );
+
   await deployment.sethxToken.mint(
     deployment.addresses.protocolTreasury,
     treasuryAmount,
   );
+
   await deployment.sethxToken.finishMinting();
 
   return {

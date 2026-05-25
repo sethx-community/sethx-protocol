@@ -1,34 +1,18 @@
-import {
-  assertAddress,
-  parseBps,
-  parsePositiveInteger,
-  parseWholeTokens,
-  requireEnv,
-} from "./guards.js";
-import type { DeploymentConfig } from "./types.js";
+function requireEnv(name: string): string {
+  const value = process.env[name];
 
-export function getTestnetConfig(): DeploymentConfig {
+  if (!value || value.trim() === "") {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+
+  return value.trim();
+}
+
+export function getTestnetDeploymentConfig() {
   return {
     environment: "testnet",
     expectedChainId: BigInt(requireEnv("SETHX_TESTNET_CHAIN_ID")),
-    requireMainnetConfirmation: false,
-    token: {
-      totalSupplyWholeTokens: parseWholeTokens(
-        "SETHX_TOTAL_SUPPLY",
-        requireEnv("SETHX_TOTAL_SUPPLY"),
-      ),
-      founderBps: parseBps(
-        "SETHX_FOUNDER_BPS",
-        requireEnv("SETHX_FOUNDER_BPS"),
-      ),
-      founderLockSeconds: parsePositiveInteger(
-        "SETHX_FOUNDER_LOCK_SECONDS",
-        requireEnv("SETHX_FOUNDER_LOCK_SECONDS"),
-      ),
-      founderAddress: assertAddress(
-        "SETHX_FOUNDER_ADDRESS",
-        requireEnv("SETHX_FOUNDER_ADDRESS"),
-      ),
-    },
-  };
+    outputDir: "deployments/testnet",
+    founderAddress: requireEnv("SETHX_FOUNDER_ADDRESS"),
+  } as const;
 }

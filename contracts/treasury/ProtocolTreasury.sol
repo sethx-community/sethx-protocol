@@ -58,14 +58,6 @@ contract ProtocolTreasury is ReentrancyGuard {
         uint256 amount
     );
 
-    event ETHRescued(address indexed caller, address indexed to, uint256 amount);
-    event ERC20Rescued(
-        address indexed caller,
-        address indexed token,
-        address indexed to,
-        uint256 amount
-    );
-
     error Unauthorized();
     error InvalidAddress();
     error InvalidAmount();
@@ -180,28 +172,6 @@ contract ProtocolTreasury is ReentrancyGuard {
         IERC20(token).safeTransfer(recipient, amount);
 
         emit ERC20Payment(msg.sender, token, recipient, amount);
-    }
-
-    function rescueETH(address payable to, uint256 amount) external onlyGovernor nonReentrant {
-        if (to == payable(address(0))) revert InvalidAddress();
-        if (amount == 0) revert InvalidAmount();
-
-        to.sendValue(amount);
-        emit ETHRescued(msg.sender, to, amount);
-    }
-
-    function rescueERC20(
-        address token,
-        address to,
-        uint256 amount
-    ) external onlyGovernor nonReentrant {
-        if (token == address(0) || to == address(0)) revert InvalidAddress();
-        if (amount == 0) revert InvalidAmount();
-
-        _trackToken(token);
-        IERC20(token).safeTransfer(to, amount);
-
-        emit ERC20Rescued(msg.sender, token, to, amount);
     }
 
     function ethBalance() external view returns (uint256) {

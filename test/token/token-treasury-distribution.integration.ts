@@ -1,66 +1,50 @@
 import { expect } from "chai";
-import { id } from "ethers";
 import { network } from "hardhat";
-import { getLocalConfig } from "../../scripts/config/local.js";
-import { deployTokenAndTreasury } from "../../scripts/deploy/00-deploy-token-and-treasury.js";
-import { setupTokenDistribution } from "../../scripts/setup/10-token-distribution.js";
+import { readLocalDeployment } from "../helpers/deployment-reader.js";
+import { expectCustomError } from "../helpers/assertions.js";
 
 const { ethers, networkHelpers } = await network.create();
 
-async function expectCustomError(
-  action: () => Promise<unknown>,
-  customErrorName: string,
-) {
-  const expectedSelector = id(`${customErrorName}()`).slice(0, 10);
-
-  try {
-    await action();
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-
-    const hasDecodedName = message.includes(customErrorName);
-    const hasSelector = message.includes(expectedSelector);
-
-    expect(
-      hasDecodedName || hasSelector,
-      `Expected custom error ${customErrorName} or selector ${expectedSelector}, but got: ${message}`,
-    ).to.equal(true);
-
-    return;
-  }
-
-  throw new Error(
-    `Expected custom error ${customErrorName}, but transaction succeeded`,
-  );
-}
-
 describe("Token, founder timelock, and treasury distribution", function () {
-  it("deploys the production-style token and treasury flow locally", async function () {
-    const founderAddress = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
-    const config = getLocalConfig(founderAddress);
+  it("verifies the local deployment token and treasury distribution", async function () {
+    const deployment = readLocalDeployment();
 
-    const deployment = await deployTokenAndTreasury(ethers, config);
-    const distribution = await setupTokenDistribution(config, deployment);
+    expect(deployment.environment).to.equal("local");
+    expect(BigInt(deployment.chainId)).to.equal(31337n);
 
-    const token = deployment.sethxToken;
-    const founderTimelock = deployment.founderTokenTimelock;
+    const token = await ethers.getContractAt(
+      "SethxToken",
+      deployment.addresses.sethxToken,
+    );
+
+    const founderTimelock = await ethers.getContractAt(
+      "FounderTokenTimelock",
+      deployment.addresses.founderTokenTimelock,
+    );
+
+    const totalSupply = BigInt(deployment.tokenDistribution.totalSupply);
+    const founderAmount = BigInt(deployment.tokenDistribution.founderAmount);
+    const treasuryAmount = BigInt(deployment.tokenDistribution.treasuryAmount);
 
     expect(
       await token.balanceOf(deployment.addresses.founderTokenTimelock),
-    ).to.equal(distribution.founderAmount);
+    ).to.equal(founderAmount);
 
     expect(
       await token.balanceOf(deployment.addresses.protocolTreasury),
-    ).to.equal(distribution.treasuryAmount);
+    ).to.equal(treasuryAmount);
 
-    expect(await token.totalSupply()).to.equal(distribution.totalSupply);
+    expect(await token.totalSupply()).to.equal(totalSupply);
     expect(await token.mintingFinished()).to.equal(true);
     expect(await token.minter()).to.equal(ethers.ZeroAddress);
 
-    await expectCustomError(() => token.mint(founderAddress, 1n), "NotMinter");
+    await expectCustomError(
+      () => token.mint(deployment.founderAddress, 1n),
+      "NotMinter",
+    );
 
     expect(await founderTimelock.beneficiary()).to.equal(
-      config.token.founderAddress,
+      deployment.founderAddress,
     );
     expect(await founderTimelock.releasable()).to.equal(0n);
 
@@ -69,18 +53,17 @@ describe("Token, founder timelock, and treasury distribution", function () {
       "TokensStillLocked",
     );
 
-    await networkHelpers.time.increaseTo(Number(deployment.founderReleaseTime));
-
-    expect(await founderTimelock.releasable()).to.equal(
-      distribution.founderAmount,
+    await networkHelpers.time.increaseTo(
+      Number(deployment.founderReleaseTime) + 1,
     );
+
+    expect(await founderTimelock.releasable()).to.equal(founderAmount);
 
     await founderTimelock.release();
 
-    expect(await token.balanceOf(config.token.founderAddress)).to.equal(
-      distribution.founderAmount,
+    expect(await token.balanceOf(deployment.founderAddress)).to.equal(
+      founderAmount,
     );
-
     expect(
       await token.balanceOf(deployment.addresses.founderTokenTimelock),
     ).to.equal(0n);

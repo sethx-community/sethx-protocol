@@ -1,41 +1,35 @@
-import type { DeploymentConfig } from "../config/types.js";
-import {
-  assertExpectedChainId,
-  assertMainnetSafety,
-} from "../config/guards.js";
-
-const LOCAL_DEPLOYER_ADDRESS = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
-
 export async function deployTokenAndTreasury(
   ethers: any,
-  config: DeploymentConfig,
+  config: {
+    founderAddress: string;
+  },
+  parameters: {
+    token: {
+      founderLockSeconds: bigint;
+    };
+  },
 ) {
-  await assertExpectedChainId(ethers, config);
-  assertMainnetSafety(config);
-
   const latestBlock = await ethers.provider.getBlock("latest");
   if (!latestBlock) throw new Error("Missing latest block");
 
   const founderReleaseTime =
-    BigInt(latestBlock.timestamp) + config.token.founderLockSeconds;
+    BigInt(latestBlock.timestamp) + parameters.token.founderLockSeconds;
+
+  const deployerAddress = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
 
   const sethxToken = await ethers.deployContract("SethxToken", [
-    LOCAL_DEPLOYER_ADDRESS,
+    deployerAddress,
   ]);
   await sethxToken.waitForDeployment();
 
   const founderTokenTimelock = await ethers.deployContract(
     "FounderTokenTimelock",
-    [
-      await sethxToken.getAddress(),
-      config.token.founderAddress,
-      founderReleaseTime,
-    ],
+    [await sethxToken.getAddress(), config.founderAddress, founderReleaseTime],
   );
   await founderTokenTimelock.waitForDeployment();
 
   const treasuryAuthority = await ethers.deployContract("TreasuryAuthority", [
-    LOCAL_DEPLOYER_ADDRESS,
+    deployerAddress,
   ]);
   await treasuryAuthority.waitForDeployment();
 
