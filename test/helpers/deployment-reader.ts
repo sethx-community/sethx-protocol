@@ -5,19 +5,98 @@ export interface LocalDeploymentOutput {
   environment: "local";
   chainId: string;
   deployedAt: string;
+  updatedAt?: string;
   founderAddress: string;
   founderReleaseTime: string;
+
   addresses: {
     sethxToken: string;
     founderTokenTimelock: string;
     treasuryAuthority: string;
     protocolTreasury: string;
+
+    // Governance
+    sethxTimelock?: string;
+    sethxGovernor?: string;
+
+    accountRegistry?: string;
+    sethxVault?: string;
+
+    priceManager?: string;
+    feeManager?: string;
+
+    tokenSpotOrderBook?: string;
+    nftSpotOrderBook?: string;
+
+    optionContract?: string;
+    optionsOrderBook?: string;
+
+    binaryMarginOptionContract?: string;
+    binaryMarginOptionsOrderBook?: string;
+
+    marginOptionContract?: string;
+    marginOptionsOrderBook?: string;
+
+    futuresContract?: string;
+    futuresOrderBook?: string;
+
+    settlementManager?: string;
+
+    lendingContract?: string;
+    lendingOrderBook?: string;
+
+    optionsValuationAdapter?: string;
+    futuresValuationAdapter?: string;
+    valuationModule?: string;
+    riskModule?: string;
+
+    liquidationEngine?: string;
+    accountFactory?: string;
+    lendingAccountFactory?: string;
+
+    treasuryPaymentsModule?: string;
+    treasuryVaultModule?: string;
+    treasuryTradeModule?: string;
+
+    sethxFeeConversionOracle?: string;
+    passiveFuturesSnapshotPublisher?: string;
+    passiveFuturesPoolFactory?: string;
   };
+
   tokenDistribution: {
     totalSupply: string;
     founderAmount: string;
     treasuryAmount: string;
   };
+
+  governance?: {
+    timelockDelaySeconds: string;
+    votingDelayBlocks: string;
+    votingPeriodBlocks: string;
+    proposalThreshold: string;
+    quorumBps: string;
+  };
+
+  roles?: {
+    timelock?: {
+      defaultAdminRole: string;
+      proposerRole: string;
+      executorRole: string;
+      cancellerRole: string;
+      governor: string;
+      openExecutor: string;
+      deployerAdminRevoked: boolean;
+      deployerAdminRevocationStage?: string;
+    };
+  };
+
+  stages?: Record<
+    string,
+    {
+      completedAt: string;
+      description: string;
+    }
+  >;
 }
 
 export function readLocalDeployment(): LocalDeploymentOutput {
@@ -30,11 +109,24 @@ export function readLocalDeployment(): LocalDeploymentOutput {
 
   if (!fs.existsSync(deploymentPath)) {
     throw new Error(
-      "Missing deployments/local/latest.json. Run npm run deploy:local before running local integration tests.",
+      "Missing deployments/local/latest.json. Run the staged local deployment before running local integration tests.",
     );
   }
 
   return JSON.parse(
     fs.readFileSync(deploymentPath, "utf8"),
   ) as LocalDeploymentOutput;
+}
+
+export function requireLocalAddress(
+  deployment: LocalDeploymentOutput,
+  name: keyof LocalDeploymentOutput["addresses"],
+): string {
+  const address = deployment.addresses[name];
+
+  if (!address) {
+    throw new Error(`Missing deployment address: ${String(name)}`);
+  }
+
+  return address;
 }

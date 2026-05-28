@@ -35,6 +35,8 @@ export default defineConfig({
     hardhat: {
       type: "edr-simulated",
       chainId: 31337,
+      blockGasLimit: 60_000_000,
+      gasMultiplier: 1,
     },
     localhost: {
       type: "http",

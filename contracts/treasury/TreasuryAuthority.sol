@@ -32,12 +32,12 @@ contract TreasuryAuthority is AccessControl {
     uint256 public constant PERMISSION_MANAGE_ORACLE_FUNDING = 1 << 5;
 
     uint256 internal constant _ALL_PERMISSIONS =
-    PERMISSION_CALL_VAULT |
-        PERMISSION_MANAGE_LIQUIDITY |
-        PERMISSION_MANAGE_PAYMENTS |
-        PERMISSION_TRADE_SETHX |
-        PERMISSION_PUBLISH_PASSIVE_QUOTES |
-        PERMISSION_MANAGE_ORACLE_FUNDING;
+        PERMISSION_CALL_VAULT |
+            PERMISSION_MANAGE_LIQUIDITY |
+            PERMISSION_MANAGE_PAYMENTS |
+            PERMISSION_TRADE_SETHX |
+            PERMISSION_PUBLISH_PASSIVE_QUOTES |
+            PERMISSION_MANAGE_ORACLE_FUNDING;
 
     struct TreasurerInfo {
         bool active;

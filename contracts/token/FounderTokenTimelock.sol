@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract FounderTokenTimelock {
     using SafeERC20 for IERC20;
@@ -16,11 +16,7 @@ contract FounderTokenTimelock {
     address public immutable beneficiary;
     uint256 public immutable releaseTime;
 
-    event FounderTokensReleased(
-        address indexed token,
-        address indexed beneficiary,
-        uint256 amount
-    );
+    event FounderTokensReleased(address indexed token, address indexed beneficiary, uint256 amount);
 
     constructor(address token_, address beneficiary_, uint256 releaseTime_) {
         if (token_ == address(0)) revert ZeroAddress();

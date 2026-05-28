@@ -1,26 +1,31 @@
 import { expect } from "chai";
-import { id } from "ethers";
+
+const CUSTOM_ERROR_SELECTORS: Record<string, string> = {
+  Unauthorized: "0x82b42900",
+};
 
 export async function expectCustomError(
   action: () => Promise<unknown>,
   customErrorName: string,
 ) {
-  const expectedSelector = id(`${customErrorName}()`).slice(0, 10);
-
   try {
     await action();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    const expectedSelector = CUSTOM_ERROR_SELECTORS[customErrorName];
 
-    const hasDecodedName = message.includes(customErrorName);
-    const hasSelector = message.includes(expectedSelector);
+    if (
+      message.includes(customErrorName) ||
+      (expectedSelector && message.includes(expectedSelector))
+    ) {
+      return;
+    }
 
-    expect(
-      hasDecodedName || hasSelector,
-      `Expected custom error ${customErrorName} or selector ${expectedSelector}, but got: ${message}`,
-    ).to.equal(true);
-
-    return;
+    throw new Error(
+      `Expected custom error ${customErrorName}${
+        expectedSelector ? ` or selector ${expectedSelector}` : ""
+      }, but got: ${message}`,
+    );
   }
 
   throw new Error(
