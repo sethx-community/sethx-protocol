@@ -45,12 +45,18 @@ contract FeeManager is AccessControl {
         uint256 executeAfter;
     }
 
+    struct PendingSethxDiscountUpdate {
+        uint256 discountBps;
+        uint256 executeAfter;
+    }
+
     mapping(string => RoleFeeConfig) public roleFeeConfigs;
     mapping(string => PendingRoleFeeUpdate) public pendingRoleUpdates;
     mapping(address => bool) public isAcceptedFeeToken;
     mapping(address => uint256) public accountDiscountBps;
     address[] public acceptedPaymentTokens;
 
+    PendingSethxDiscountUpdate public pendingSethxDiscountUpdate;
     uint256 public sethxDiscountBps;
     address public immutable sethxToken;
     PriceManager public priceManager;
@@ -58,6 +64,8 @@ contract FeeManager is AccessControl {
 
     event AcceptedFeeTokenUpdated(address token, bool accepted);
     event SethxDiscountSet(uint256 discountBps);
+    event SethxDiscountUpdateQueued(uint256 discountBps, uint256 executeAfter);
+    event SethxDiscountUpdateCancelled();
     event AccountDiscountSet(address indexed account, uint256 discountBps);
     event RoleFeeConfigSet(
         string context,
@@ -146,10 +154,31 @@ contract FeeManager is AccessControl {
         return acceptedPaymentTokens;
     }
 
-    function setSethxDiscount(uint256 discountBps) external onlyGovernance {
+    function queueSethxDiscountUpdate(uint256 discountBps) external onlyGovernance {
         if (discountBps > BPS_DENOMINATOR) revert InvalidBps();
-        sethxDiscountBps = discountBps;
-        emit SethxDiscountSet(discountBps);
+
+        pendingSethxDiscountUpdate = PendingSethxDiscountUpdate({
+            discountBps: discountBps,
+            executeAfter: block.timestamp + feeUpdateDelay
+        });
+
+        emit SethxDiscountUpdateQueued(discountBps, block.timestamp + feeUpdateDelay);
+    }
+
+    function executeSethxDiscountUpdate() external onlyGovernance {
+        PendingSethxDiscountUpdate memory pending = pendingSethxDiscountUpdate;
+        if (pending.executeAfter == 0) revert NoPendingUpdate();
+        if (block.timestamp < pending.executeAfter) revert FeeUpdateTooEarly();
+
+        sethxDiscountBps = pending.discountBps;
+        delete pendingSethxDiscountUpdate;
+
+        emit SethxDiscountSet(pending.discountBps);
+    }
+
+    function cancelSethxDiscountUpdate() external onlyGovernance {
+        delete pendingSethxDiscountUpdate;
+        emit SethxDiscountUpdateCancelled();
     }
 
     function setAccountDiscount(address account, uint256 discountBps) external onlyGovernance {
@@ -158,6 +187,7 @@ contract FeeManager is AccessControl {
         accountDiscountBps[account] = discountBps;
         emit AccountDiscountSet(account, discountBps);
     }
+
 
     function queueRoleFeeUpdate(
         string calldata context,

@@ -50,14 +50,14 @@ export const INITIAL_PROTOCOL_PARAMETERS = {
     // Maker/taker split is handled by FeeManager's isMaker flag.
     contexts: [
       {
-        context: "Token Spot Trade",
+        context: "ERC20 Spot Trade",
         makerFixedFeeEth: FIXED_FEE_ETH,
         makerPercentageFeeBps: 2,
         takerFixedFeeEth: FIXED_FEE_ETH,
         takerPercentageFeeBps: 2,
       },
       {
-        context: "NFT Spot Trade",
+        context: "ERC721 Spot Trade",
         makerFixedFeeEth: 0n,
         makerPercentageFeeBps: 0,
         takerFixedFeeEth: FIXED_FEE_ETH,
@@ -108,6 +108,7 @@ export const INITIAL_PROTOCOL_PARAMETERS = {
 
   marginOptions: {
     settlementPriceMaxWaitSeconds: 3_600,
+    approvedCollateralBps: [10_000],
   },
 
   binaryMarginOptions: {
@@ -221,13 +222,13 @@ export const INITIAL_PROTOCOL_PARAMETERS = {
   treasury: {
     // Replace before production-style initialization.
     // For local/dev you can use deployer or a dedicated local signer.
-    initialTreasurer: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-    initialGuardian: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+    initialTreasurer: "0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199",
+    initialGuardian: "0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199",
 
     paymentRecipients: [
       {
         id: "HOSTING",
-        recipient: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+        recipient: "0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199",
         token: ETH,
         monthlyLimit: HOSTING_MONTHLY_LIMIT_ETH,
         approved: true,

@@ -108,7 +108,7 @@ async function createFuturesMarket(contracts: any, timelockSigner: any, oracleAd
 }
 
 async function depositEthToAccount(account: any, owner: any, amount: bigint) {
-  await (await account.connect(owner).depositETH({ value: amount })).wait();
+  await (await account.connect(owner).depositETH(await account.getAddress(), await account.vault(), { value: amount })).wait();
 }
 
 async function getFuturesFee(feeManager: any, account: string, notional: bigint, isMaker: boolean): Promise<FeeOutput> {

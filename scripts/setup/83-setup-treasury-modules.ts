@@ -31,6 +31,17 @@ function combinePermissionBits(values: unknown[]): bigint {
   );
 }
 
+
+async function setVaultProtocolTreasuryIfNeeded(
+  vault: any,
+  protocolTreasuryAddress: string,
+) {
+  if ((await vault.protocolTreasury()) !== protocolTreasuryAddress) {
+    const tx = await vault.setProtocolTreasury(protocolTreasuryAddress);
+    await tx.wait();
+  }
+}
+
 async function setApprovedTreasuryModuleIfNeeded(
   protocolTreasury: any,
   module: string,
@@ -238,6 +249,12 @@ export async function setupTreasuryModules(
     deployment.addresses.treasuryAuthority,
   );
 
+  await setVaultProtocolTreasuryIfNeeded(
+    vault,
+    deployment.addresses.protocolTreasury,
+  );
+
+
   const treasuryPaymentsModule = await ethers.getContractAt(
     "TreasuryPaymentsModule",
     deployment.addresses.treasuryPaymentsModule,
@@ -354,6 +371,10 @@ export async function setupTreasuryModules(
         TREASURY_ROLE,
         deployment.addresses.treasuryVaultModule,
       ),
+
+      vaultProtocolTreasury: await vault.protocolTreasury(),
+      vaultProtocolTreasuryConfigured:
+        (await vault.protocolTreasury()) === deployment.addresses.protocolTreasury,
 
       treasuryPaymentsModuleApproved:
         await protocolTreasury.approvedTreasuryModules(

@@ -8,6 +8,10 @@ import { FeeManager } from "../../oracle/FeeManager.sol";
 import { SethxVault } from "../../vault/SethxVault.sol";
 import { AccountRegistry } from "../../accounts/AccountRegistry.sol";
 
+interface IPassiveLiquidityPoolStatusView {
+    function active() external view returns (bool);
+}
+
 /// @notice Futures OrderBook
 /// - Orders are BUY/SELL (not open/close). Execution auto-nets:
 ///     BUY: close SHORT first, then open/increase LONG
@@ -59,6 +63,7 @@ contract FuturesOrderBook is AccessControl {
     error BidCrossesBook();
     error AskCrossesBook();
     error PassiveQuoteExceedsCapacity();
+    error PassiveQuoteOpensPosition();
 
     error OrderNotFound();
     error NotOrderOwner();
@@ -588,10 +593,15 @@ contract FuturesOrderBook is AccessControl {
         }
 
         address pool = passivePoolForMarket[marketKey];
+        bool poolActive = IPassiveLiquidityPoolStatusView(pool).active();
 
         uint256 capacityNeed = 0;
 
         if (bidSize > 0) {
+            if (!poolActive && !_passiveQuoteIsReduceOnly(pool, marketKey, Side.Buy, uint256(bidSize))) {
+                revert PassiveQuoteOpensPosition();
+            }
+
             capacityNeed += _passiveMakerFillNeed(
                 pool,
                 marketKey,
@@ -603,6 +613,10 @@ contract FuturesOrderBook is AccessControl {
         }
 
         if (askSize > 0) {
+            if (!poolActive && !_passiveQuoteIsReduceOnly(pool, marketKey, Side.Sell, uint256(askSize))) {
+                revert PassiveQuoteOpensPosition();
+            }
+
             capacityNeed += _passiveMakerFillNeed(
                 pool,
                 marketKey,
@@ -1126,6 +1140,19 @@ contract FuturesOrderBook is AccessControl {
         );
 
         return _freeETH(makerUser) >= need;
+    }
+
+    function _passiveQuoteIsReduceOnly(
+        address makerUser,
+        bytes32 marketKey,
+        Side makerSide,
+        uint256 quoteSize
+    ) internal view returns (bool) {
+        if (quoteSize == 0) return true;
+
+        (uint256 closeAmt, ) = _closeViewForAccount(makerUser, marketKey, makerSide, quoteSize);
+
+        return closeAmt == quoteSize;
     }
 
     function _passiveMakerFillNeed(

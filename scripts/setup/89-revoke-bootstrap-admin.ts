@@ -195,13 +195,6 @@ export async function revokeBootstrapAdmin(
     "binaryMarginOptionContractGovernorRevoked",
   );
 
-  await renounceRoleIfAddress(
-    "BinaryMarginOptionContract",
-    deployment.addresses.binaryMarginOptionContract,
-    "MARKET_MANAGER_ROLE",
-    "binaryMarginOptionContractMarketManagerRevoked",
-  );
-
 
   await renounceRoleIfAddress(
     "MarginOptionContract",
@@ -215,13 +208,6 @@ export async function revokeBootstrapAdmin(
     deployment.addresses.marginOptionContract,
     "GOVERNOR_ROLE",
     "marginOptionContractGovernorRevoked",
-  );
-
-  await renounceRoleIfAddress(
-    "MarginOptionContract",
-    deployment.addresses.marginOptionContract,
-    "MARKET_MANAGER_ROLE",
-    "marginOptionContractMarketManagerRevoked",
   );
 
 

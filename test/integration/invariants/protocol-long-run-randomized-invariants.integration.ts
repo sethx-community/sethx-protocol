@@ -54,12 +54,12 @@ async function freshOrderExpiry(): Promise<bigint> {
 }
 
 async function depositEth(account: any, owner: any, amount: bigint) {
-  await (await account.connect(owner).depositETH({ value: amount })).wait();
+  await (await account.connect(owner).depositETH(await account.getAddress(), await account.vault(), { value: amount })).wait();
 }
 
 async function depositToken(token: any, account: any, owner: any, amount: bigint) {
   await (await token.connect(owner).approve(await account.getAddress(), amount)).wait();
-  await (await account.connect(owner).depositToken(await token.getAddress(), amount)).wait();
+  await (await account.connect(owner).depositToken(await token.getAddress(), amount, await account.getAddress(), await account.vault())).wait();
 }
 
 async function freeEth(vault: any, account: string): Promise<bigint> {

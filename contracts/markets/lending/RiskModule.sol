@@ -514,6 +514,7 @@ contract RiskModule is AccessControl {
     ) internal view {
         if (
             selector == MarginOptionsOrderBook.placeOrder.selector ||
+            selector == MarginOptionsOrderBook.placeOrderForMarket.selector ||
             selector == MarginOptionsOrderBook.acceptOrder.selector
         ) {
             if (!valuationModule.canTrade(account, riskLevel)) revert TradeDisallowed();
@@ -541,6 +542,7 @@ contract RiskModule is AccessControl {
     ) internal view {
         if (
             selector == BinaryMarginOptionsOrderBook.placeOrder.selector ||
+            selector == BinaryMarginOptionsOrderBook.placeOrderForMarket.selector ||
             selector == BinaryMarginOptionsOrderBook.acceptOrder.selector
         ) {
             if (!valuationModule.canTrade(account, riskLevel)) revert TradeDisallowed();

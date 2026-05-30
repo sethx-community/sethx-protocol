@@ -484,7 +484,7 @@ describe("PriceManager oracle registration and freshness integration", function 
       ),
     );
     await expectRevert(
-      contracts.priceManager.fetchPrice(ethers.ZeroAddress, "0x"),
+      contracts.priceManager.fetchPrice(ethers.ZeroAddress),
     );
     await expectRevert(
       contracts.priceManager.syncOracleData(ethers.ZeroAddress),
@@ -495,7 +495,7 @@ describe("PriceManager oracle registration and freshness integration", function 
         OracleContext.TRADE_VALUE,
       ),
     );
-    await expectRevert(contracts.priceManager.fetchPrice(oracleAddress, "0x"));
+    await expectRevert(contracts.priceManager.fetchPrice(oracleAddress));
     await expectRevert(contracts.priceManager.syncOracleData(oracleAddress));
 
     const [ok, selectedOracle] =

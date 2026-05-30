@@ -9,15 +9,27 @@ import { PassiveLiquidityPool } from "./PassiveLiquidityPool.sol";
 interface IFuturesOrderBookPassiveAdmin {
     function setPassivePool(bytes32 marketKey, address pool) external;
     function setPassivePublisher(address publisher, bool enabled) external;
+    function clearPassiveSnapshot(bytes32 marketKey) external;
+}
+
+interface IPassiveLiquidityPoolAdmin {
+    function setActive(bool enabled) external;
 }
 
 contract PassiveFuturesPoolFactory is AccessControl {
     bytes32 public constant GOVERNOR_ROLE = keccak256("GOVERNOR_ROLE");
 
+    enum PoolStatus {
+        Unknown,
+        Active,
+        Inactive
+    }
+
     struct PoolInfo {
         address pool;
         address publisher;
         uint256 createdAt;
+        PoolStatus status;
     }
 
     address public immutable futures;
@@ -35,10 +47,13 @@ contract PassiveFuturesPoolFactory is AccessControl {
     );
 
     event PassivePublisherApproved(address indexed publisher, bool enabled);
+    event PassivePoolStatusSet(bytes32 indexed marketKey, address indexed pool, PoolStatus status);
 
     error ZeroAddress();
     error InvalidMarketKey();
     error PoolAlreadyExists();
+    error PoolNotFound();
+    error Unauthorized();
 
     constructor(
         address futures_,
@@ -89,13 +104,55 @@ contract PassiveFuturesPoolFactory is AccessControl {
         poolForMarket[marketKey] = PoolInfo({
             pool: pool,
             publisher: publisher,
-            createdAt: block.timestamp
+            createdAt: block.timestamp,
+            status: PoolStatus.Active
         });
 
         marketKeys.push(marketKey);
 
         emit PassivePoolCreated(marketKey, pool, publisher);
+        emit PassivePoolStatusSet(marketKey, pool, PoolStatus.Active);
         emit PassivePublisherApproved(publisher, true);
+    }
+
+    function setPoolActive(bytes32 marketKey, bool enabled) external onlyRole(GOVERNOR_ROLE) {
+        PoolInfo storage info = poolForMarket[marketKey];
+        if (info.pool == address(0)) revert PoolNotFound();
+
+        info.status = enabled ? PoolStatus.Active : PoolStatus.Inactive;
+        IPassiveLiquidityPoolAdmin(info.pool).setActive(enabled);
+
+        if (!enabled) {
+            IFuturesOrderBookPassiveAdmin(orderBook).clearPassiveSnapshot(marketKey);
+        }
+
+        emit PassivePoolStatusSet(marketKey, info.pool, info.status);
+    }
+
+    function closePool(bytes32 marketKey) external {
+        PoolInfo storage info = poolForMarket[marketKey];
+        if (info.pool == address(0)) revert PoolNotFound();
+        if (!hasRole(GOVERNOR_ROLE, msg.sender) && msg.sender != info.publisher) revert Unauthorized();
+
+        info.status = PoolStatus.Inactive;
+        IPassiveLiquidityPoolAdmin(info.pool).setActive(false);
+        IFuturesOrderBookPassiveAdmin(orderBook).clearPassiveSnapshot(marketKey);
+
+        emit PassivePoolStatusSet(marketKey, info.pool, PoolStatus.Inactive);
+    }
+
+    function reopenPool(bytes32 marketKey) external onlyRole(GOVERNOR_ROLE) {
+        PoolInfo storage info = poolForMarket[marketKey];
+        if (info.pool == address(0)) revert PoolNotFound();
+
+        info.status = PoolStatus.Active;
+        IPassiveLiquidityPoolAdmin(info.pool).setActive(true);
+
+        emit PassivePoolStatusSet(marketKey, info.pool, PoolStatus.Active);
+    }
+
+    function isPoolActive(bytes32 marketKey) external view returns (bool) {
+        return poolForMarket[marketKey].status == PoolStatus.Active;
     }
 
     function approvePassivePublisher(

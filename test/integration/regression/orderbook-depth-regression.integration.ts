@@ -68,18 +68,18 @@ function lendingMarketKey(expiry: bigint, riskLevel = RISK_LEVEL): string {
 }
 
 async function depositEth(account: any, owner: any, amount: bigint) {
-  await (await account.connect(owner).depositETH({ value: amount })).wait();
+  await (await account.connect(owner).depositETH(await account.getAddress(), await account.vault(), { value: amount })).wait();
 }
 
 async function depositToken(token: any, account: any, owner: any, amount: bigint) {
   await (await token.connect(owner).approve(await account.getAddress(), amount)).wait();
-  await (await account.connect(owner).depositToken(await token.getAddress(), amount)).wait();
+  await (await account.connect(owner).depositToken(await token.getAddress(), amount, await account.getAddress(), await account.vault())).wait();
 }
 
 async function depositNft(nft: any, account: any, owner: any, tokenId: bigint) {
   expect(await nft.ownerOf(tokenId), `NFT ${tokenId} owner before deposit`).to.equal(await owner.getAddress());
   await (await nft.connect(owner).setApprovalForAll(await account.getAddress(), true)).wait();
-  await (await account.connect(owner).depositNFT721(await nft.getAddress(), tokenId)).wait();
+  await (await account.connect(owner).depositNFT721(await nft.getAddress(), tokenId, await account.getAddress(), await account.vault())).wait();
 }
 
 async function mintNftTo(nft: any, owner: any): Promise<bigint> {
@@ -225,8 +225,7 @@ async function registerOptionOracle(contracts: any, governance: any, token: stri
 }
 
 async function createMarginMarket(contracts: any, governance: any, label: string) {
-  const now = await latestTimestamp();
-  const expiry = now + 7n * 86_400n;
+  const expiry = await nextOptionExpiry();
   const { oracle, oracleAddress } = await registerOptionOracle(
     contracts,
     governance,
@@ -237,15 +236,14 @@ async function createMarginMarket(contracts: any, governance: any, label: string
   await (
     await contracts.marginOptionContract
       .connect(governance)
-      .createMarket(label, MarginOptionType.Call, oracleAddress, 2n * 10n ** 8n, 10n ** 8n, expiry, 10_000n)
+      .createMarket(label, MarginOptionType.Call, oracleAddress, 2n * 10n ** 8n, expiry, 10_000n)
   ).wait();
   const count = await contracts.marginOptionContract.marketCount();
   return { marketKey: await contracts.marginOptionContract.marketKeyAt(count - 1n), oracle, expiry };
 }
 
 async function createBinaryMarket(contracts: any, governance: any, label: string) {
-  const now = await latestTimestamp();
-  const expiry = now + 8n * 86_400n;
+  const expiry = await nextOptionExpiry();
   const { oracle, oracleAddress } = await registerOptionOracle(
     contracts,
     governance,
@@ -256,7 +254,7 @@ async function createBinaryMarket(contracts: any, governance: any, label: string
   await (
     await contracts.binaryMarginOptionContract
       .connect(governance)
-      .createMarket(label, MarginOptionType.Call, oracleAddress, 2n * 10n ** 8n, 10n ** 8n, expiry)
+      .createMarket(label, MarginOptionType.Call, oracleAddress, 2n * 10n ** 8n, expiry)
   ).wait();
   const count = await contracts.binaryMarginOptionContract.marketCount();
   return { marketKey: await contracts.binaryMarginOptionContract.marketKeyAt(count - 1n), oracle, expiry };

@@ -110,7 +110,7 @@ async function nextLendingExpiry(monthsAhead = 2): Promise<bigint> {
 }
 
 async function depositEth(account: any, owner: any, amount: bigint) {
-  await (await account.connect(owner).depositETH({ value: amount })).wait();
+  await (await account.connect(owner).depositETH(await account.getAddress(), await account.vault(), { value: amount })).wait();
 }
 
 async function makeRestrictedBorrower(
@@ -292,14 +292,14 @@ describe("RiskModule adversarial and restricted LendingAccount integration", fun
     expect(await borrower.isActive()).to.equal(true);
 
     // Deposits add collateral and remain allowed; withdrawals/rescues are blocked by noRestrictedWithdrawals.
-    await (await borrower.connect(actors.bob).depositETH({ value: ONE })).wait();
+    await (await borrower.connect(actors.bob).depositETH(await borrower.getAddress(), await borrower.vault(), { value: ONE })).wait();
     await (await assets.tokenA.mint(ownerAddress, 100n * ONE)).wait();
     await (await assets.tokenA.connect(actors.bob).approve(borrowerAddress, 100n * ONE)).wait();
-    await (await borrower.connect(actors.bob).depositToken(await assets.tokenA.getAddress(), 10n * ONE)).wait();
+    await (await borrower.connect(actors.bob).depositToken(await assets.tokenA.getAddress(), 10n * ONE, await borrower.getAddress(), await borrower.vault())).wait();
     const tokenId = await assets.nft.nextTokenId();
     await (await assets.nft.mint(ownerAddress)).wait();
     await (await assets.nft.connect(actors.bob).approve(borrowerAddress, tokenId)).wait();
-    await (await borrower.connect(actors.bob).depositNFT721(await assets.nft.getAddress(), tokenId)).wait();
+    await (await borrower.connect(actors.bob).depositNFT721(await assets.nft.getAddress(), tokenId, await borrower.getAddress(), await borrower.vault())).wait();
 
     await expectBlocked("restricted withdrawETH", borrower.connect(actors.bob).withdrawETH(1n));
     await expectBlocked("restricted withdrawToken", borrower.connect(actors.bob).withdrawToken(await assets.tokenA.getAddress(), 1n));

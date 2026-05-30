@@ -111,7 +111,7 @@ async function expectBlocked(label: string, promise: Promise<unknown>) {
 }
 
 async function depositEth(account: any, owner: any, amount: bigint) {
-  await (await account.connect(owner).depositETH({ value: amount })).wait();
+  await (await account.connect(owner).depositETH(await account.getAddress(), await account.vault(), { value: amount })).wait();
 }
 
 async function registerCollateralOracle(
@@ -199,7 +199,7 @@ async function makeTokenCollateralDebtScenario(
   await depositEth(lender, actors.alice, principal);
   await (await token.mint(await actors.bob.getAddress(), collateralTokens)).wait();
   await (await token.connect(actors.bob).approve(borrowerAddress, collateralTokens)).wait();
-  await (await borrower.connect(actors.bob).depositToken(tokenAddress, collateralTokens)).wait();
+  await (await borrower.connect(actors.bob).depositToken(tokenAddress, collateralTokens, await borrower.getAddress(), await borrower.vault())).wait();
 
   const expiry = await nextLendingExpiry(monthsAhead);
   const orderExpiry = (await latestTimestamp()) + 7n * 24n * 60n * 60n;

@@ -11,14 +11,11 @@ contract MockPriceOracle {
     string private _pair;
     string private _source;
     string private _notes;
+    string private _fetchFormula;
 
     mapping(address => uint256) private _fundingBalances;
 
-    constructor(
-        string memory pair_,
-        uint8 decimals_,
-        uint256 initialPrice_
-    ) {
+    constructor(string memory pair_, uint8 decimals_, uint256 initialPrice_) {
         _pair = pair_;
         _decimals = decimals_;
         _price = initialPrice_;
@@ -27,6 +24,7 @@ contract MockPriceOracle {
         _status = "OK";
         _source = "MockPriceOracle";
         _notes = "Local test oracle";
+        _fetchFormula = "Mock oracle: price is manually set through setPrice() or setPriceWithTimestamp(); fetchPrice() records lastFetchTimestamp and does not call an external feed.";
     }
 
     function setPrice(uint256 newPrice) external {
@@ -58,15 +56,14 @@ contract MockPriceOracle {
         _notes = notes_;
     }
 
+    function setFetchFormula(string calldata fetchFormula_) external {
+        _fetchFormula = fetchFormula_;
+    }
+
     function getLastPrice()
         external
         view
-        returns (
-            uint256 price,
-            uint256 timestamp,
-            uint256 lastFetchTimestamp,
-            string memory status
-        )
+        returns (uint256 price, uint256 timestamp, uint256 lastFetchTimestamp, string memory status)
     {
         return (_price, _timestamp, _lastFetchTimestamp, _status);
     }
@@ -75,8 +72,12 @@ contract MockPriceOracle {
         return _decimals;
     }
 
-    function fetchPrice(bytes calldata) external {
+    function fetchPrice() external {
         _lastFetchTimestamp = block.timestamp;
+    }
+
+    function fetchFormula() external view returns (string memory) {
+        return _fetchFormula;
     }
 
     function metadata()

@@ -11,12 +11,10 @@ export async function setupMarginOptions(
   parameters: {
     marginOptions?: {
       settlementPriceMaxWaitSeconds?: number | bigint;
+      approvedCollateralBps?: Array<number | bigint>;
     };
   } = {},
 ) {
-  const [deployer] = await ethers.getSigners();
-  const deployerAddress = await deployer.getAddress();
-
   const vault = await ethers.getContractAt(
     "SethxVault",
     deployment.addresses.sethxVault,
@@ -29,7 +27,6 @@ export async function setupMarginOptions(
 
   const vaultOrderbookRole = await vault.ORDERBOOK_ROLE();
   const contractOrderbookRole = await marginOptionContract.ORDERBOOK_ROLE();
-  const marketManagerRole = await marginOptionContract.MARKET_MANAGER_ROLE();
 
   const currentPriceManager = await marginOptionContract.priceManager();
   if (ethers.getAddress(currentPriceManager) !== ethers.getAddress(deployment.addresses.priceManager)) {
@@ -78,17 +75,15 @@ export async function setupMarginOptions(
     await tx.wait();
   }
 
-  if (
-    !(await marginOptionContract.hasRole(marketManagerRole, deployerAddress))
-  ) {
-    const tx = await marginOptionContract.grantRole(
-      marketManagerRole,
-      deployerAddress,
-    );
-    await tx.wait();
+
+  const approvedCollateralBps = parameters.marginOptions?.approvedCollateralBps ?? [10_000];
+  for (const bps of approvedCollateralBps) {
+    const desiredBps = BigInt(bps);
+    if (!(await marginOptionContract.approvedCollateralBps(desiredBps))) {
+      const tx = await marginOptionContract.setApprovedCollateralBps(desiredBps, true);
+      await tx.wait();
+    }
   }
-
-
 
   const settlementPriceMaxWaitSeconds =
     parameters.marginOptions?.settlementPriceMaxWaitSeconds;
@@ -106,7 +101,7 @@ export async function setupMarginOptions(
       marginOptionContract: {
         vaultOrderbookRole: true,
         priceManager: deployment.addresses.priceManager,
-        deployerMarketManagerRole: true,
+        approvedCollateralBps,
       },
       marginOptionsOrderBook: {
         vaultOrderbookRole: true,

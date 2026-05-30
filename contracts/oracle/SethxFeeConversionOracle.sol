@@ -79,8 +79,12 @@ contract SethxFeeConversionOracle is AccessControl, IPriceOracle {
         return 18;
     }
 
-    function fetchPrice(bytes calldata) external {
+    function fetchPrice() external {
         lastFetchTimestamp = block.timestamp;
+    }
+
+    function fetchFormula() external pure returns (string memory) {
+        return "Governance-set fixed conversion: price = sethxPerEth, scaled to 18 decimals as SETHX per 1 ETH. fetchPrice() records lastFetchTimestamp; setSethxPerEth() updates the stored price.";
     }
 
     function metadata()

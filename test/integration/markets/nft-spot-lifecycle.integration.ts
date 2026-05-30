@@ -86,12 +86,12 @@ async function depositTokenToAccount(
 ) {
   if (amount === 0n) return;
   await (await token.connect(owner).approve(await account.getAddress(), amount)).wait();
-  await (await account.connect(owner).depositToken(await token.getAddress(), amount)).wait();
+  await (await account.connect(owner).depositToken(await token.getAddress(), amount, await account.getAddress(), await account.vault())).wait();
 }
 
 async function depositEthToAccount(account: any, owner: any, amount: bigint) {
   if (amount === 0n) return;
-  await (await account.connect(owner).depositETH({ value: amount })).wait();
+  await (await account.connect(owner).depositETH(await account.getAddress(), await account.vault(), { value: amount })).wait();
 }
 
 async function depositNftToAccount(
@@ -101,7 +101,7 @@ async function depositNftToAccount(
   tokenId: bigint,
 ) {
   await (await nft.connect(owner).approve(await account.getAddress(), tokenId)).wait();
-  await (await account.connect(owner).depositNFT721(await nft.getAddress(), tokenId)).wait();
+  await (await account.connect(owner).depositNFT721(await nft.getAddress(), tokenId, await account.getAddress(), await account.vault())).wait();
 }
 
 async function expectQuoteState(

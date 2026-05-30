@@ -177,8 +177,8 @@ describe("SethxVault custody and invariant integration", function () {
         "depositETH",
         () =>
           contracts.vault
-            .connect(actors.attacker)
-            .depositETH({ value: ethers.parseEther("1") }),
+        .connect(actors.attacker)
+        .depositETH({ value: ethers.parseEther("1") }),
       ],
       [
         "withdrawETHTo",
@@ -517,7 +517,7 @@ describe("SethxVault custody and invariant integration", function () {
     await (
       await aliceAccount
         .connect(actors.alice)
-        .depositETH({ value: depositAmount })
+        .depositETH(await aliceAccount.getAddress(), await aliceAccount.vault(), { value: depositAmount })
     ).wait();
 
     await expectAccountEthSplit(
@@ -595,7 +595,7 @@ describe("SethxVault custody and invariant integration", function () {
     await (
       await aliceAccount
         .connect(actors.alice)
-        .depositToken(tokenAddress, depositAmount)
+        .depositToken(tokenAddress, depositAmount, await aliceAccount.getAddress(), await aliceAccount.vault())
     ).wait();
 
     await expectAccountErc20Split(
@@ -680,7 +680,7 @@ describe("SethxVault custody and invariant integration", function () {
     await (
       await aliceAccount
         .connect(actors.alice)
-        .depositNFT721(nftAddress, tokenId)
+        .depositNFT721(nftAddress, tokenId, await aliceAccount.getAddress(), await aliceAccount.vault())
     ).wait();
 
     expect(await contracts.vault.isERC721(nftAddress)).to.equal(true);
@@ -699,7 +699,7 @@ describe("SethxVault custody and invariant integration", function () {
     );
 
     await expectRevert(
-      aliceAccount.connect(actors.alice).depositNFT721(nftAddress, tokenId),
+      aliceAccount.connect(actors.alice).depositNFT721(nftAddress, tokenId, await aliceAccount.getAddress(), await aliceAccount.vault()),
     );
 
     await (
@@ -752,16 +752,16 @@ describe("SethxVault custody and invariant integration", function () {
     const baselineVaultBalance = await ethers.provider.getBalance(vaultAddress);
 
     await expectRevert(
-      aliceAccount.connect(actors.alice).depositETH({ value: 0n }),
+      aliceAccount.connect(actors.alice).depositETH(await aliceAccount.getAddress(), await aliceAccount.vault(), { value: 0n }),
     );
     await expectRevert(
-      aliceAccount.connect(actors.alice).depositToken(ETH, 1n),
+      aliceAccount.connect(actors.alice).depositToken(ETH, 1n, await aliceAccount.getAddress(), await aliceAccount.vault()),
     );
     await expectRevert(
-      aliceAccount.connect(actors.alice).depositToken(tokenAddress, 0n),
+      aliceAccount.connect(actors.alice).depositToken(tokenAddress, 0n, await aliceAccount.getAddress(), await aliceAccount.vault()),
     );
     await expectRevert(
-      aliceAccount.connect(actors.alice).depositNFT721(ETH, 1n),
+      aliceAccount.connect(actors.alice).depositNFT721(ETH, 1n, await aliceAccount.getAddress(), await aliceAccount.vault()),
     );
 
     await expectAccountEthSplit(contracts.vault, aliceAccountAddress, 0n, 0n);

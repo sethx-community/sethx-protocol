@@ -96,7 +96,7 @@ async function nextLendingExpiry(monthsAhead = 2): Promise<bigint> {
 }
 
 async function depositEth(account: any, owner: any, amount: bigint) {
-  await (await account.connect(owner).depositETH({ value: amount })).wait();
+  await (await account.connect(owner).depositETH(await account.getAddress(), await account.vault(), { value: amount })).wait();
 }
 
 async function makeScenarioAccounts(contracts: any, actors: any): Promise<ScenarioAccounts> {

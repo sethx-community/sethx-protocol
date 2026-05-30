@@ -15,7 +15,7 @@ const { ethers } = await network.create();
 
 const ETH = ethers.ZeroAddress;
 const UNCONFIGURED_CONTEXT = "Unconfigured Integration Fee Context";
-const INTEGRATION_CONTEXT = "Token Spot Trade";
+const INTEGRATION_CONTEXT = "ERC20 Spot Trade";
 const WAD = 10n ** 18n;
 
 function includesAddress(addresses: string[], target: string) {
@@ -54,6 +54,53 @@ async function stopImpersonating(address: string) {
   await ethers.provider.send("hardhat_stopImpersonatingAccount", [address]);
 }
 
+
+
+async function activateDeployedSethxDiscount(
+  feeManager: any,
+  expectedDiscountBps: bigint,
+  governanceAdmin: string,
+) {
+  const activeBefore = await feeManager.sethxDiscountBps();
+  if (activeBefore === expectedDiscountBps) return activeBefore;
+
+  const pending = await feeManager.pendingSethxDiscountUpdate();
+  expect(
+    pending.discountBps,
+    "SETHX discount must be queued by deployment initialization",
+  ).to.equal(expectedDiscountBps);
+  expect(
+    pending.executeAfter,
+    "SETHX discount executeAfter must be set",
+  ).to.be.greaterThan(0n);
+
+  await mineToTimestamp(pending.executeAfter);
+
+  const timelockHasAdmin = await feeManager.hasRole(
+    await feeManager.DEFAULT_ADMIN_ROLE(),
+    governanceAdmin,
+  );
+  expect(
+    timelockHasAdmin,
+    "Timelock must hold FeeManager DEFAULT_ADMIN_ROLE after handoff",
+  ).to.equal(true);
+
+  const timelockSigner = await impersonateGovernanceAdmin(governanceAdmin);
+  try {
+    const tx = await feeManager
+      .connect(timelockSigner)
+      .executeSethxDiscountUpdate();
+    await tx.wait();
+  } finally {
+    await stopImpersonating(governanceAdmin);
+  }
+
+  expect(await feeManager.sethxDiscountBps()).to.equal(expectedDiscountBps);
+  const pendingAfter = await feeManager.pendingSethxDiscountUpdate();
+  expect(pendingAfter.executeAfter).to.equal(0n);
+
+  return expectedDiscountBps;
+}
 
 async function activateDeployedFeeContext(
   feeManager: any,
@@ -177,9 +224,25 @@ describe("FeeManager and SETHX fee conversion oracle integration", function () {
             .setETHAsAcceptedFeeToken(false),
       ],
       [
-        "setSethxDiscount",
+        "queueSethxDiscountUpdate",
         () =>
-          contracts.feeManager.connect(actors.attacker).setSethxDiscount(1n),
+          contracts.feeManager
+            .connect(actors.attacker)
+            .queueSethxDiscountUpdate(1n),
+      ],
+      [
+        "executeSethxDiscountUpdate",
+        () =>
+          contracts.feeManager
+            .connect(actors.attacker)
+            .executeSethxDiscountUpdate(),
+      ],
+      [
+        "cancelSethxDiscountUpdate",
+        () =>
+          contracts.feeManager
+            .connect(actors.attacker)
+            .cancelSethxDiscountUpdate(),
       ],
       [
         "setAccountDiscount",
@@ -259,7 +322,7 @@ describe("FeeManager and SETHX fee conversion oracle integration", function () {
     const before = await contracts.sethxFeeConversionOracle.getLastPrice();
     const tx = await contracts.sethxFeeConversionOracle
       .connect(actors.attacker)
-      .fetchPrice("0x");
+      .fetchPrice();
     await tx.wait();
     const after = await contracts.sethxFeeConversionOracle.getLastPrice();
 
@@ -285,9 +348,19 @@ describe("FeeManager and SETHX fee conversion oracle integration", function () {
     expect(
       await contracts.feeManager.isAcceptedFeeToken(addresses.sethxToken),
     ).to.equal(feeParams.acceptSethxFees);
-    expect(await contracts.feeManager.sethxDiscountBps()).to.equal(
-      BigInt(feeParams.sethxDiscountBps),
-    );
+    const activeSethxDiscount = await contracts.feeManager.sethxDiscountBps();
+    const pendingSethxDiscount =
+      await contracts.feeManager.pendingSethxDiscountUpdate();
+
+    if (activeSethxDiscount === BigInt(feeParams.sethxDiscountBps)) {
+      expect(pendingSethxDiscount.executeAfter).to.equal(0n);
+    } else {
+      expect(activeSethxDiscount).to.equal(0n);
+      expect(pendingSethxDiscount.discountBps).to.equal(
+        BigInt(feeParams.sethxDiscountBps),
+      );
+      expect(pendingSethxDiscount.executeAfter).to.be.greaterThan(0n);
+    }
     expect(await contracts.feeManager.feeUpdateDelay()).to.equal(
       BigInt(feeParams.feeUpdateDelaySeconds),
     );
@@ -421,7 +494,7 @@ describe("FeeManager and SETHX fee conversion oracle integration", function () {
     ).to.equal(expectedSethxFee);
   });
 
-  it("mines past the fee delay and calculates Token Spot Trade SETHX fixed and percentage fees", async function () {
+  it("mines past the fee delay and calculates ERC20 Spot Trade SETHX fixed and percentage fees", async function () {
     const { addresses, contracts } = await loadIntegratedDeployment(ethers);
     const actors = await loadActors(ethers);
     const feeParams = INITIAL_PROTOCOL_PARAMETERS.feeManager;
@@ -431,6 +504,12 @@ describe("FeeManager and SETHX fee conversion oracle integration", function () {
 
     expect(context, `${INTEGRATION_CONTEXT} fee params missing`).to.not.equal(
       undefined,
+    );
+
+    await activateDeployedSethxDiscount(
+      contracts.feeManager,
+      BigInt(feeParams.sethxDiscountBps),
+      addresses.sethxTimelock,
     );
 
     const active = await activateDeployedFeeContext(

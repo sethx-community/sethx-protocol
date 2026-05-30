@@ -71,6 +71,7 @@ contract PassiveLiquidityPool is AccessControl, ReentrancyGuard {
         uint256 shortSize;
         uint256 shortMargin;
         bool registeredAccount;
+        bool active;
         bool depositsPaused;
         bool withdrawalsPaused;
     }
@@ -82,6 +83,7 @@ contract PassiveLiquidityPool is AccessControl, ReentrancyGuard {
     bytes32 public immutable marketKey;
     string public marketTicker;
 
+    bool public active = true;
     bool public depositsPaused;
     bool public withdrawalsPaused;
 
@@ -96,11 +98,13 @@ contract PassiveLiquidityPool is AccessControl, ReentrancyGuard {
     event WithdrawalCancelled(address indexed user, uint256 sharesReturned);
     event WithdrawalProcessed(address indexed user, uint256 sharesBurned, uint256 assetsOut);
 
+    event ActiveSet(bool enabled);
     event DepositsPausedSet(bool paused);
     event WithdrawalsPausedSet(bool paused);
 
     error ZeroAmount();
     error UnknownMarket();
+    error PoolInactive();
     error DepositsPausedErr();
     error WithdrawalsPausedErr();
     error InsufficientShares();
@@ -139,11 +143,13 @@ contract PassiveLiquidityPool is AccessControl, ReentrancyGuard {
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(GOVERNOR_ROLE, governor);
+        _grantRole(GOVERNOR_ROLE, admin);
     }
 
     receive() external payable {}
 
     function deposit() external payable nonReentrant returns (uint256 sharesMinted) {
+        if (!active) revert PoolInactive();
         if (depositsPaused) revert DepositsPausedErr();
         if (msg.value == 0) revert ZeroAmount();
         if (!isRegisteredAccount()) revert PoolNotRegisteredAccount();
@@ -234,6 +240,16 @@ contract PassiveLiquidityPool is AccessControl, ReentrancyGuard {
         emit WithdrawalProcessed(user, sharesToBurn, assetsOut);
     }
 
+    function setActive(bool enabled) external onlyRole(GOVERNOR_ROLE) {
+        active = enabled;
+
+        if (!enabled) {
+            depositsPaused = true;
+        }
+
+        emit ActiveSet(enabled);
+    }
+
     function setDepositsPaused(bool paused) external onlyRole(GOVERNOR_ROLE) {
         depositsPaused = paused;
 
@@ -317,6 +333,7 @@ contract PassiveLiquidityPool is AccessControl, ReentrancyGuard {
         snap.shortSize = shortPos.size;
         snap.shortMargin = shortPos.margin;
         snap.registeredAccount = isRegisteredAccount();
+        snap.active = active;
         snap.depositsPaused = depositsPaused;
         snap.withdrawalsPaused = withdrawalsPaused;
     }

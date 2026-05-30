@@ -217,6 +217,48 @@ contract BinaryMarginOptionsOrderBook is AccessControl {
         uint256 expiry,
         address feeToken
     ) external onlyAccount returns (uint256) {
+        return _placeOrder(marketKey, intentRaw, payoutAmount, askPrice, expiry, feeToken);
+    }
+
+    function placeOrderForMarket(
+        string calldata ticker,
+        BinaryMarginOptionContract.OptionType optionType,
+        address oracle,
+        uint256 strikePrice,
+        uint256 marketExpiry,
+        uint8 intentRaw,
+        uint256 payoutAmount,
+        uint256 askPrice,
+        uint256 expiry,
+        address feeToken
+    ) external onlyAccount returns (uint256) {
+        (bytes32 marketKey,,) = marginOptionContract.previewMarketKey(
+            optionType,
+            oracle,
+            strikePrice,
+            marketExpiry
+        );
+        BinaryMarginOptionContract.MarketConfig memory existing = marginOptionContract.getMarket(marketKey);
+        if (!existing.initialized) {
+            marketKey = marginOptionContract.createMarket(
+                ticker,
+                optionType,
+                oracle,
+                strikePrice,
+                marketExpiry
+            );
+        }
+        return _placeOrder(marketKey, intentRaw, payoutAmount, askPrice, expiry, feeToken);
+    }
+
+    function _placeOrder(
+        bytes32 marketKey,
+        uint8 intentRaw,
+        uint256 payoutAmount,
+        uint256 askPrice,
+        uint256 expiry,
+        address feeToken
+    ) internal returns (uint256) {
         if (payoutAmount == 0) revert InvalidAmount();
         if (askPrice == 0) revert InvalidPrice();
 
@@ -276,6 +318,7 @@ contract BinaryMarginOptionsOrderBook is AccessControl {
         }
 
         return orderId;
+    
     }
 
     function acceptOrder(

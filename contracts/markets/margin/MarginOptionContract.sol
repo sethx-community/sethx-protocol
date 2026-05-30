@@ -14,7 +14,8 @@ import { AccountRegistry } from "../../accounts/AccountRegistry.sol";
  *
  * Product summary
  * - Similar lifecycle to options: writer/holder positions, secondary transfers, expiry settlement.
- * - MARKET_MANAGER defines oracle, quote token, collateral percentage and strike grid.
+ * - Governor approves oracle usage in PriceManager and allowed collateral percentages.
+ * - Anyone can create a Friday-noon option market using an approved oracle/config.
  * - Collateral is locked margin in quote token and is also the maximum payout.
  * - Payout is oracle-price-vs-strike linear intrinsic, capped by locked margin.
  *
@@ -26,7 +27,6 @@ import { AccountRegistry } from "../../accounts/AccountRegistry.sol";
 contract MarginOptionContract is AccessControl {
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    bytes32 public constant MARKET_MANAGER_ROLE = keccak256("MARKET_MANAGER_ROLE");
     bytes32 public constant GOVERNOR_ROLE = keccak256("GOVERNOR_ROLE");
     bytes32 public constant ORDERBOOK_ROLE = keccak256("ORDERBOOK_ROLE");
     uint256 public constant WAD = 1e18;
@@ -38,6 +38,7 @@ contract MarginOptionContract is AccessControl {
     error InvalidAmount();
     error InvalidStrike();
     error InvalidIncrement();
+    error InvalidStrikeDivider();
     error InvalidExpiry();
     error InvalidCollateralBps();
     error InvalidOracle();
@@ -124,6 +125,9 @@ contract MarginOptionContract is AccessControl {
     mapping(bytes32 => uint256) private _marketKeyIndexPlus1;
     mapping(bytes32 => uint256) public marketOpenInterest;
 
+    mapping(uint256 => bool) public approvedCollateralBps;
+
+
     event MarketCreated(
         bytes32 indexed marketKey,
         OptionType optionType,
@@ -149,6 +153,8 @@ contract MarginOptionContract is AccessControl {
         uint256 lastPriceTimestamp
     );
     event SettlementPriceMaxWaitUpdated(uint256 oldWait, uint256 newWait);
+    event StrikeDividerUpdated(uint256 oldDivider, uint256 newDivider);
+    event CollateralBpsApprovalSet(uint256 indexed collateralBps, bool approved);
     event MarginOptionRegistered(
         bytes32 indexed marketKey,
         address indexed writer,
@@ -208,6 +214,12 @@ contract MarginOptionContract is AccessControl {
         priceManager = PriceManager(_priceManager);
     }
 
+    function setApprovedCollateralBps(uint256 collateralBps, bool approved) external onlyRole(GOVERNOR_ROLE) {
+        if (collateralBps == 0 || collateralBps > 10_000) revert InvalidCollateralBps();
+        approvedCollateralBps[collateralBps] = approved;
+        emit CollateralBpsApprovalSet(collateralBps, approved);
+    }
+
     function setSettlementPriceMaxWait(uint256 newWait) external onlyRole(GOVERNOR_ROLE) {
         if (newWait == 0) revert InvalidSettlementPriceMaxWait();
         uint256 oldWait = settlementPriceMaxWait;
@@ -243,6 +255,13 @@ contract MarginOptionContract is AccessControl {
         out = new address[](len);
         for (uint256 i = 0; i < len; i++) out[i] = writerSet[marketKey].at(i);
     }
+    function setStrikeDivider(uint256 newDivider) external onlyRole(GOVERNOR_ROLE) {
+        if (newDivider == 0) revert InvalidStrikeDivider();
+        uint256 old = strikeDivider;
+        strikeDivider = newDivider;
+        emit StrikeDividerUpdated(old, newDivider);
+    }
+
 
     function computeMarketKey(
         OptionType optionType,
@@ -258,14 +277,51 @@ contract MarginOptionContract is AccessControl {
             );
     }
 
-    function normalizeStrike(
-        uint256 strikePrice,
-        uint256 strikeIncrement
-    ) public pure returns (uint256) {
+    /// @dev Strike granularity control: tick ~= magnitude / strikeDivider. Governor can adjust.
+    uint256 public strikeDivider = 50;
+
+    /// @notice Returns true iff `expiry` is exactly Friday 12:00 UTC.
+    function isValidExpiry(uint256 expiry) public pure returns (bool) {
+        uint256 day = expiry / 1 days;
+        uint256 weekday = (day + 4) % 7;
+        if (weekday != 5) return false;
+        return (expiry % 1 days) == 12 hours;
+    }
+
+    function requireValidExpiry(uint256 expiry) public pure {
+        if (!isValidExpiry(expiry)) revert InvalidExpiry();
+    }
+
+    function _floorLog10(uint256 x) internal pure returns (uint256 n) {
+        while (x >= 10) {
+            x /= 10;
+            n++;
+        }
+    }
+
+    function _pow10(uint256 n) internal pure returns (uint256 out) {
+        out = 1;
+        while (n > 0) {
+            out *= 10;
+            n--;
+        }
+    }
+
+    /// @notice Returns the strike tick size implied by `strikeDivider` for a given normalized strike.
+    function tickForStrike(uint256 strikePrice) public view returns (uint256) {
         if (strikePrice == 0) revert InvalidStrike();
-        if (strikeIncrement == 0) revert InvalidIncrement();
-        uint256 half = strikeIncrement / 2;
-        return ((strikePrice + half) / strikeIncrement) * strikeIncrement;
+        uint256 mag = _pow10(_floorLog10(strikePrice));
+        uint256 tick = mag / strikeDivider;
+        if (tick == 0) tick = 1;
+        return tick;
+    }
+
+    /// @notice Normalizes `strikePrice` to the nearest valid strike on the contract-defined tick grid.
+    function normalizeStrike(uint256 strikePrice) public view returns (uint256) {
+        if (strikePrice == 0) revert InvalidStrike();
+        uint256 tick = tickForStrike(strikePrice);
+        uint256 half = tick / 2;
+        return ((strikePrice + half) / tick) * tick;
     }
 
     function reserveWriterPosition(
@@ -334,19 +390,35 @@ contract MarginOptionContract is AccessControl {
         hp.reserved -= size;
     }
 
+    function previewMarketKey(
+        OptionType optionType,
+        address oracle,
+        uint256 strikePriceInput,
+        uint256 expiry,
+        uint256 collateralBps
+    ) public view returns (bytes32 marketKey, uint256 normalizedStrike, uint256 normalizedStrikeIncrement) {
+        uint8 paymentDec = 18;
+        uint8 oracleDec = IPriceOracle(oracle).decimals();
+        uint256 strikeInputNorm = _normalizePrice(strikePriceInput, oracleDec, paymentDec);
+        normalizedStrike = normalizeStrike(strikeInputNorm);
+        normalizedStrikeIncrement = tickForStrike(strikeInputNorm);
+        marketKey = computeMarketKey(optionType, oracle, address(0), normalizedStrike, expiry, collateralBps);
+    }
+
     function createMarket(
         string calldata ticker,
         OptionType optionType,
         address oracle,
         uint256 strikePriceInput,
-        uint256 strikeIncrement,
         uint256 expiry,
         uint256 collateralBps
-    ) external onlyRole(MARKET_MANAGER_ROLE) returns (bytes32 marketKey) {
+    ) public returns (bytes32 marketKey) {
         if (expiry <= block.timestamp) revert InvalidExpiry();
+        requireValidExpiry(expiry);
         if (collateralBps == 0 || collateralBps > 10_000) {
             revert InvalidCollateralBps();
         }
+        if (!approvedCollateralBps[collateralBps]) revert InvalidCollateralBps();
         if (address(priceManager) == address(0)) revert PriceManagerNotSet();
 
         if (oracle == address(0)) revert ZeroAddress();
@@ -365,8 +437,8 @@ contract MarginOptionContract is AccessControl {
         uint8 oracleDec = IPriceOracle(oracle).decimals();
 
         uint256 strikeInputNorm = _normalizePrice(strikePriceInput, oracleDec, paymentDec);
-        uint256 strikeIncrementNorm = _normalizePrice(strikeIncrement, oracleDec, paymentDec);
-        uint256 strikePrice = normalizeStrike(strikeInputNorm, strikeIncrementNorm);
+        uint256 strikeIncrementNorm = tickForStrike(strikeInputNorm);
+        uint256 strikePrice = normalizeStrike(strikeInputNorm);
 
         marketKey = computeMarketKey(
             optionType,
@@ -535,7 +607,6 @@ contract MarginOptionContract is AccessControl {
         emit WriterPositionTransferred(marketKey, from, to, size, marginAmount);
     }
 
-
     /**
      * @notice Permissionless oracle-based settlement.
      * @dev Settlement prefers the first PriceManager-stored oracle price whose timestamp is
@@ -664,7 +735,6 @@ contract MarginOptionContract is AccessControl {
         emit WriterReclaimed(marketKey, msg.sender, reclaimable);
     }
 
-
     function _readStoredOraclePrice(
         MarketConfig storage m
     ) internal view returns (uint256 rawPrice, uint256 priceTimestamp) {
@@ -675,9 +745,7 @@ contract MarginOptionContract is AccessControl {
     }
 
     function _tryRefreshSettlementOracle(address oracle) internal {
-        bytes memory emptyData = new bytes(0);
-
-        try PriceManager(address(priceManager)).fetchPrice(oracle, emptyData) {} catch {}
+        try PriceManager(address(priceManager)).fetchPrice(oracle) {} catch {}
         try PriceManager(address(priceManager)).syncOracleData(oracle) {} catch {}
     }
 

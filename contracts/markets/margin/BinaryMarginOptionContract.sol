@@ -13,7 +13,8 @@ import { IPriceOracle } from "../../oracle/interfaces/IPriceOracle.sol";
  * @notice Binary payout option ledger settled in quote token only.
  *
  * Product model
- * - Markets are standardized by oracle / strike / strike increment / expiry.
+ * - Governor approves oracle usage in PriceManager.
+ * - Anyone can create a Friday-noon market for an approved oracle / strike / expiry; strike increment is contract-derived.
  * - Orders trade a payout amount, not a "size".
  * - Writer locks exactly the payout amount.
  * - Buyer pays premium = payoutAmount * askPrice / 1e18.
@@ -23,12 +24,13 @@ import { IPriceOracle } from "../../oracle/interfaces/IPriceOracle.sol";
 contract BinaryMarginOptionContract is AccessControl {
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    bytes32 public constant MARKET_MANAGER_ROLE = keccak256("MARKET_MANAGER_ROLE");
     bytes32 public constant GOVERNOR_ROLE = keccak256("GOVERNOR_ROLE");
     bytes32 public constant ORDERBOOK_ROLE = keccak256("ORDERBOOK_ROLE");
     uint256 public constant WAD = 1e18;
 
     uint256 public settlementPriceMaxWait = 1 hours;
+    /// @dev Strike granularity control: tick ~= magnitude / strikeDivider. Governor can adjust.
+    uint256 public strikeDivider = 50;
 
     error ZeroAddress();
     error Unauthorized();
@@ -36,6 +38,7 @@ contract BinaryMarginOptionContract is AccessControl {
     error InvalidAmount();
     error InvalidStrike();
     error InvalidIncrement();
+    error InvalidStrikeDivider();
     error InvalidExpiry();
     error InvalidOracle();
     error InvalidPaymentToken();
@@ -138,6 +141,7 @@ contract BinaryMarginOptionContract is AccessControl {
         uint256 lastPriceTimestamp
     );
     event SettlementPriceMaxWaitUpdated(uint256 oldWait, uint256 newWait);
+    event StrikeDividerUpdated(uint256 oldDivider, uint256 newDivider);
 
     event BinaryMarginOptionRegistered(
         bytes32 indexed marketKey,
@@ -275,6 +279,13 @@ contract BinaryMarginOptionContract is AccessControl {
         out = new address[](len);
         for (uint256 i = 0; i < len; i++) out[i] = writerSet[marketKey].at(i);
     }
+    function setStrikeDivider(uint256 newDivider) external onlyRole(GOVERNOR_ROLE) {
+        if (newDivider == 0) revert InvalidStrikeDivider();
+        uint256 old = strikeDivider;
+        strikeDivider = newDivider;
+        emit StrikeDividerUpdated(old, newDivider);
+    }
+
 
     function computeMarketKey(
         OptionType optionType,
@@ -286,14 +297,62 @@ contract BinaryMarginOptionContract is AccessControl {
         return keccak256(abi.encode(optionType, oracle, paymentToken, strikePrice, expiry));
     }
 
-    function normalizeStrike(
-        uint256 strikePrice,
-        uint256 strikeIncrement
-    ) public pure returns (uint256) {
+    /// @notice Returns true iff `expiry` is exactly Friday 12:00 UTC.
+    function isValidExpiry(uint256 expiry) public pure returns (bool) {
+        uint256 day = expiry / 1 days;
+        uint256 weekday = (day + 4) % 7;
+        if (weekday != 5) return false;
+        return (expiry % 1 days) == 12 hours;
+    }
+
+    function requireValidExpiry(uint256 expiry) public pure {
+        if (!isValidExpiry(expiry)) revert InvalidExpiry();
+    }
+
+    function _floorLog10(uint256 x) internal pure returns (uint256 n) {
+        while (x >= 10) {
+            x /= 10;
+            n++;
+        }
+    }
+
+    function _pow10(uint256 n) internal pure returns (uint256 out) {
+        out = 1;
+        while (n > 0) {
+            out *= 10;
+            n--;
+        }
+    }
+
+    /// @notice Returns the strike tick size implied by `strikeDivider` for a given normalized strike.
+    function tickForStrike(uint256 strikePrice) public view returns (uint256) {
         if (strikePrice == 0) revert InvalidStrike();
-        if (strikeIncrement == 0) revert InvalidIncrement();
-        uint256 half = strikeIncrement / 2;
-        return ((strikePrice + half) / strikeIncrement) * strikeIncrement;
+        uint256 mag = _pow10(_floorLog10(strikePrice));
+        uint256 tick = mag / strikeDivider;
+        if (tick == 0) tick = 1;
+        return tick;
+    }
+
+    /// @notice Normalizes `strikePrice` to the nearest valid strike on the contract-defined tick grid.
+    function normalizeStrike(uint256 strikePrice) public view returns (uint256) {
+        if (strikePrice == 0) revert InvalidStrike();
+        uint256 tick = tickForStrike(strikePrice);
+        uint256 half = tick / 2;
+        return ((strikePrice + half) / tick) * tick;
+    }
+
+    function previewMarketKey(
+        OptionType optionType,
+        address oracle,
+        uint256 strikePriceInput,
+        uint256 expiry
+    ) public view returns (bytes32 marketKey, uint256 normalizedStrike, uint256 normalizedStrikeIncrement) {
+        uint8 paymentDec = 18;
+        uint8 oracleDec = IPriceOracle(oracle).decimals();
+        uint256 strikeInputNorm = _normalizePrice(strikePriceInput, oracleDec, paymentDec);
+        normalizedStrike = normalizeStrike(strikeInputNorm);
+        normalizedStrikeIncrement = tickForStrike(strikeInputNorm);
+        marketKey = computeMarketKey(optionType, oracle, address(0), normalizedStrike, expiry);
     }
 
     function createMarket(
@@ -301,10 +360,10 @@ contract BinaryMarginOptionContract is AccessControl {
         OptionType optionType,
         address oracle,
         uint256 strikePriceInput,
-        uint256 strikeIncrement,
         uint256 expiry
-    ) external onlyRole(MARKET_MANAGER_ROLE) returns (bytes32 marketKey) {
+    ) public returns (bytes32 marketKey) {
         if (expiry <= block.timestamp) revert InvalidExpiry();
+        requireValidExpiry(expiry);
         if (address(priceManager) == address(0)) revert PriceManagerNotSet();
         if (oracle == address(0)) revert ZeroAddress();
 
@@ -322,8 +381,8 @@ contract BinaryMarginOptionContract is AccessControl {
         uint8 oracleDec = IPriceOracle(oracle).decimals();
 
         uint256 strikeInputNorm = _normalizePrice(strikePriceInput, oracleDec, paymentDec);
-        uint256 strikeIncrementNorm = _normalizePrice(strikeIncrement, oracleDec, paymentDec);
-        uint256 strikePrice = normalizeStrike(strikeInputNorm, strikeIncrementNorm);
+        uint256 strikeIncrementNorm = tickForStrike(strikeInputNorm);
+        uint256 strikePrice = normalizeStrike(strikeInputNorm);
 
         marketKey = computeMarketKey(optionType, oracle, paymentToken, strikePrice, expiry);
         if (markets[marketKey].initialized) revert MarketAlreadyExists();
@@ -489,7 +548,6 @@ contract BinaryMarginOptionContract is AccessControl {
         emit WriterPositionTransferred(marketKey, from, to, payoutAmount, lockedMargin);
     }
 
-
     /**
      * @notice Permissionless oracle-based settlement.
      * @dev Uses the first PriceManager-stored oracle price at or after expiry. If that
@@ -614,7 +672,6 @@ contract BinaryMarginOptionContract is AccessControl {
         emit WriterReclaimed(marketKey, msg.sender, reclaimable);
     }
 
-
     function _readStoredOraclePrice(
         MarketConfig storage m
     ) internal view returns (uint256 rawPrice, uint256 priceTimestamp) {
@@ -625,9 +682,7 @@ contract BinaryMarginOptionContract is AccessControl {
     }
 
     function _tryRefreshSettlementOracle(address oracle) internal {
-        bytes memory emptyData = new bytes(0);
-
-        try PriceManager(address(priceManager)).fetchPrice(oracle, emptyData) {} catch {}
+        try PriceManager(address(priceManager)).fetchPrice(oracle) {} catch {}
         try PriceManager(address(priceManager)).syncOracleData(oracle) {} catch {}
     }
 

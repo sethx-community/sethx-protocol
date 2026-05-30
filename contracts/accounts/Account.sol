@@ -49,6 +49,8 @@ contract Account {
     error InvalidExpiry();
     error InvalidRate();
     error EthOnly();
+    error UnexpectedAccount(address expectedAccount, address actualAccount);
+    error UnexpectedVault(address expectedVault, address actualVault);
 
     address public owner;
     address public pendingOwner;
@@ -111,8 +113,15 @@ contract Account {
     // =========================================================
 
     /// @notice Deposit ETH into vault (vault credits msg.sender (Account) balance).
-    function depositETH() external payable onlyOwner {
+    function depositETH(address expectedAccount, address expectedVault) external payable onlyOwner {
         if (msg.value == 0) revert InvalidAmount();
+        if (expectedAccount != address(this)) {
+            revert UnexpectedAccount(expectedAccount, address(this));
+        }
+
+        if (expectedVault != address(vault)) {
+            revert UnexpectedVault(expectedVault, address(vault));
+        }
         vault.depositETH{ value: msg.value }();
     }
 
@@ -123,9 +132,21 @@ contract Account {
 
     /// @notice Deposit ERC20 into vault.
     /// @dev Owner must approve THIS Account for `amount` first.
-    function depositToken(address token, uint256 amount) external onlyOwner {
+    function depositToken(
+        address token,
+        uint256 amount,
+        address expectedAccount,
+        address expectedVault
+    ) external onlyOwner {
         if (token == address(0)) revert ZeroAddress();
         if (amount == 0) revert InvalidAmount();
+        if (expectedAccount != address(this)) {
+            revert UnexpectedAccount(expectedAccount, address(this));
+        }
+
+        if (expectedVault != address(vault)) {
+            revert UnexpectedVault(expectedVault, address(vault));
+        }
 
         // Pull to Account
         IERC20(token).safeTransferFrom(owner, address(this), amount);
@@ -145,8 +166,20 @@ contract Account {
 
     /// @notice Deposit ERC721 into vault.
     /// @dev Owner must approve THIS Account for tokenId first.
-    function depositNFT721(address nft, uint256 tokenId) external onlyOwner {
+    function depositNFT721(
+        address nft,
+        uint256 tokenId,
+        address expectedAccount,
+        address expectedVault
+    ) external onlyOwner {
         if (nft == address(0)) revert ZeroAddress();
+        if (expectedAccount != address(this)) {
+            revert UnexpectedAccount(expectedAccount, address(this));
+        }
+
+        if (expectedVault != address(vault)) {
+            revert UnexpectedVault(expectedVault, address(vault));
+        }
 
         IERC721(nft).transferFrom(owner, address(this), tokenId);
         IERC721(nft).approve(address(vault), tokenId);
@@ -331,6 +364,27 @@ contract Account {
             );
     }
 
+    function placeOrderMarginOptionForMarket(
+        address orderbook,
+        string calldata ticker,
+        MarginOptionContract.OptionType optionType,
+        address oracle,
+        uint256 strikePrice,
+        uint256 marketExpiry,
+        uint256 collateralBps,
+        MarginOptionsOrderBook.OrderIntent intent,
+        uint256 size,
+        uint256 askPrice,
+        uint256 expiry,
+        address feeToken
+    ) external onlyOwner {
+        if (orderbook == address(0)) revert ZeroAddress();
+        MarginOptionsOrderBook(orderbook).placeOrderForMarket(
+            ticker, optionType, oracle, strikePrice, marketExpiry, collateralBps,
+            intent, size, askPrice, expiry, feeToken
+        );
+    }
+
     function acceptOrderMarginOption(
         address orderbook,
         uint256 makerOrderId,
@@ -389,6 +443,26 @@ contract Account {
                 expiry,
                 feeToken
             );
+    }
+
+    function placeOrderBinaryMarginOptionForMarket(
+        address orderbook,
+        string calldata ticker,
+        BinaryMarginOptionContract.OptionType optionType,
+        address oracle,
+        uint256 strikePrice,
+        uint256 marketExpiry,
+        uint8 intent,
+        uint256 payoutAmount,
+        uint256 askPrice,
+        uint256 expiry,
+        address feeToken
+    ) external onlyOwner returns (uint256) {
+        if (orderbook == address(0)) revert ZeroAddress();
+        return BinaryMarginOptionsOrderBook(orderbook).placeOrderForMarket(
+            ticker, optionType, oracle, strikePrice, marketExpiry,
+            intent, payoutAmount, askPrice, expiry, feeToken
+        );
     }
 
     function acceptOrderBinaryMarginOption(
@@ -523,6 +597,7 @@ contract Account {
         if (lendingContract == address(0)) revert ZeroAddress();
         LendingContract(payable(lendingContract)).claimSupplemental(bondIndex);
     }
+
     // =========================================================
     // Rescue functions (only for assets mistakenly sent to Account)
     // =========================================================

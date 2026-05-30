@@ -323,7 +323,7 @@ contract TreasuryTradeModule is TreasuryModuleBase {
         if (amount == 0) revert InvalidAmount();
 
         protocolTreasury.fundInternalETH(payable(address(this)), amount);
-        Account(payable(account)).depositETH{ value: amount }();
+        Account(payable(account)).depositETH{ value: amount }(account, address(vault));
 
         emit TreasuryAccountETHFunded(msg.sender, account, amount);
     }
@@ -344,7 +344,7 @@ contract TreasuryTradeModule is TreasuryModuleBase {
         IERC20(token).forceApprove(account, 0);
         IERC20(token).forceApprove(account, amount);
 
-        Account(payable(account)).depositToken(token, amount);
+        Account(payable(account)).depositToken(token, amount, account, address(vault));
 
         emit TreasuryAccountERC20Funded(msg.sender, account, token, amount);
     }

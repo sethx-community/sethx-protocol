@@ -57,6 +57,8 @@ contract LendingAccount {
     error InvalidOrder();
     error InsufficientETH();
     error EthTransferFailed();
+    error UnexpectedAccount(address expectedAccount, address actualAccount);
+    error UnexpectedVault(address expectedVault, address actualVault);
 
     address public owner;
     string public accountName;
@@ -201,8 +203,19 @@ contract LendingAccount {
     // Vault: deposits / withdrawals
     // =========================================================
 
-    function depositETH() external payable onlyOwner whenNotLiquidating {
+    function depositETH(
+        address expectedAccount,
+        address expectedVault
+    ) external payable onlyOwner whenNotLiquidating {
         if (msg.value == 0) revert InvalidAmount();
+        if (expectedAccount != address(this)) {
+            revert UnexpectedAccount(expectedAccount, address(this));
+        }
+
+        if (expectedVault != address(vault)) {
+            revert UnexpectedVault(expectedVault, address(vault));
+        }
+
         vault.depositETH{ value: msg.value }();
     }
 
@@ -218,9 +231,21 @@ contract LendingAccount {
         vault.withdrawETHTo(owner, amount);
     }
 
-    function depositToken(address token, uint256 amount) external onlyOwner whenNotLiquidating {
+    function depositToken(
+        address token,
+        uint256 amount,
+        address expectedAccount,
+        address expectedVault
+    ) external onlyOwner whenNotLiquidating {
         if (token == address(0)) revert ZeroAddress();
         if (amount == 0) revert InvalidAmount();
+        if (expectedAccount != address(this)) {
+            revert UnexpectedAccount(expectedAccount, address(this));
+        }
+
+        if (expectedVault != address(vault)) {
+            revert UnexpectedVault(expectedVault, address(vault));
+        }
 
         IERC20(token).safeTransferFrom(owner, address(this), amount);
         IERC20(token).forceApprove(address(vault), 0);
@@ -235,8 +260,21 @@ contract LendingAccount {
         vault.withdrawERC20To(token, owner, amount);
     }
 
-    function depositNFT721(address nft, uint256 tokenId) external onlyOwner whenNotLiquidating {
+    function depositNFT721(
+        address nft,
+        uint256 tokenId,
+        address expectedAccount,
+        address expectedVault
+    ) external onlyOwner whenNotLiquidating {
         if (nft == address(0)) revert ZeroAddress();
+        if (expectedAccount != address(this)) {
+            revert UnexpectedAccount(expectedAccount, address(this));
+        }
+
+        if (expectedVault != address(vault)) {
+            revert UnexpectedVault(expectedVault, address(vault));
+        }
+
         IERC721(nft).transferFrom(owner, address(this), tokenId);
         IERC721(nft).approve(address(vault), tokenId);
         vault.depositERC721(nft, tokenId);
@@ -547,6 +585,33 @@ contract LendingAccount {
         );
     }
 
+    function placeOrderMarginOptionForMarket(
+        address orderbook,
+        string calldata ticker,
+        MarginOptionContract.OptionType optionType,
+        address oracle,
+        uint256 strikePrice,
+        uint256 marketExpiry,
+        uint256 collateralBps,
+        MarginOptionsOrderBook.OrderIntent intent,
+        uint256 size,
+        uint256 askPrice,
+        uint256 expiry,
+        address feeToken
+    ) external onlyOwner whenNotLiquidating {
+        if (orderbook == address(0)) revert ZeroAddress();
+        bytes memory data = abi.encodeWithSelector(
+            MarginOptionsOrderBook.placeOrderForMarket.selector,
+            ticker, optionType, oracle, strikePrice, marketExpiry, collateralBps,
+            intent, size, askPrice, expiry, feeToken
+        );
+        _checkRisk(orderbook, data);
+        MarginOptionsOrderBook(orderbook).placeOrderForMarket(
+            ticker, optionType, oracle, strikePrice, marketExpiry, collateralBps,
+            intent, size, askPrice, expiry, feeToken
+        );
+    }
+
     function acceptOrderMarginOption(
         address orderbook,
         uint256 makerOrderId,
@@ -633,6 +698,32 @@ contract LendingAccount {
                 expiry,
                 feeToken
             );
+    }
+
+    function placeOrderBinaryMarginOptionForMarket(
+        address orderbook,
+        string calldata ticker,
+        BinaryMarginOptionContract.OptionType optionType,
+        address oracle,
+        uint256 strikePrice,
+        uint256 marketExpiry,
+        uint8 intent,
+        uint256 payoutAmount,
+        uint256 askPrice,
+        uint256 expiry,
+        address feeToken
+    ) external onlyOwner whenNotLiquidating returns (uint256) {
+        if (orderbook == address(0)) revert ZeroAddress();
+        bytes memory data = abi.encodeWithSelector(
+            BinaryMarginOptionsOrderBook.placeOrderForMarket.selector,
+            ticker, optionType, oracle, strikePrice, marketExpiry,
+            intent, payoutAmount, askPrice, expiry, feeToken
+        );
+        _checkRisk(orderbook, data);
+        return BinaryMarginOptionsOrderBook(orderbook).placeOrderForMarket(
+            ticker, optionType, oracle, strikePrice, marketExpiry,
+            intent, payoutAmount, askPrice, expiry, feeToken
+        );
     }
 
     function acceptOrderBinaryMarginOption(

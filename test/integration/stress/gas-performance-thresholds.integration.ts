@@ -24,13 +24,13 @@ async function freshOrderExpiry(days = 7): Promise<bigint> {
 }
 
 async function depositEth(account: any, owner: any, amount: bigint) {
-  const tx = await account.connect(owner).depositETH({ value: amount });
+  const tx = await account.connect(owner).depositETH(await account.getAddress(), await account.vault(), { value: amount });
   return (await tx.wait())!.gasUsed;
 }
 
 async function depositToken(token: any, account: any, owner: any, amount: bigint) {
   await (await token.connect(owner).approve(await account.getAddress(), amount)).wait();
-  const tx = await account.connect(owner).depositToken(await token.getAddress(), amount);
+  const tx = await account.connect(owner).depositToken(await token.getAddress(), amount, await account.getAddress(), await account.vault());
   return (await tx.wait())!.gasUsed;
 }
 

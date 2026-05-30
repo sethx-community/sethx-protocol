@@ -46,12 +46,7 @@ contract LendingAccountFactory is AccessControl {
         address indexed newLiquidationEngine
     );
 
-    constructor(
-        address _registry,
-        address _vault,
-        address admin,
-        address _liquidationEngine
-    ) {
+    constructor(address _registry, address _vault, address admin, address _liquidationEngine) {
         if (_registry == address(0)) revert ZeroAddress();
         if (_vault == address(0)) revert ZeroAddress();
         if (admin == address(0)) revert ZeroAddress();

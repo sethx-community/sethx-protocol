@@ -1,3 +1,5 @@
+import { INITIAL_PROTOCOL_PARAMETERS } from "../../../scripts/parameters/initial-protocol-parameters.js";
+
 import {
   readLocalDeployment,
   requireLocalAddress,
@@ -165,6 +167,17 @@ export async function loadIntegratedDeployment(ethers: any) {
 
 export async function loadActors(ethers: any) {
   const signers = await ethers.getSigners();
+  const configuredTreasurer = ethers.getAddress(
+    INITIAL_PROTOCOL_PARAMETERS.treasury.initialTreasurer,
+  );
+
+  let treasurer = signers[5];
+  for (const signer of signers) {
+    if (ethers.getAddress(await signer.getAddress()) === configuredTreasurer) {
+      treasurer = signer;
+      break;
+    }
+  }
 
   return {
     deployer: signers[0],
@@ -173,7 +186,7 @@ export async function loadActors(ethers: any) {
     bob: signers[2],
     carol: signers[3],
     dave: signers[4],
-    treasurer: signers[5],
+    treasurer,
     attacker: signers[6],
     lp1: signers[7],
     lp2: signers[8],

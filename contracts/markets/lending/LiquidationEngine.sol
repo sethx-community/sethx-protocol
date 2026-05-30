@@ -243,7 +243,8 @@ contract LiquidationEngine is AccessControl {
         if (block.timestamp > a.endTime) revert AuctionIsExpired();
         // Auction purchases are account-mediated. Both normal Account and LendingAccount
         // contracts are valid buyers; EOAs and unregistered/fake contracts remain blocked.
-        if (!accountRegistry.isAccount(msg.sender) && !accountRegistry.isLendingAccount(msg.sender)) revert BuyerNotAccount();
+        if (!accountRegistry.isAccount(msg.sender) && !accountRegistry.isLendingAccount(msg.sender))
+            revert BuyerNotAccount();
 
         uint256 price = getCurrentAuctionPrice(account);
 

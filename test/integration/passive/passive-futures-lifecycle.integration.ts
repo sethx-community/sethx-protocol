@@ -106,12 +106,14 @@ async function createMarketAndPool(contracts: any, timelockSigner: any, label: s
   const snap = await pool.getSnapshot();
   expect(snap.registeredAccount).to.equal(true);
   expect(snap.marketKey).to.equal(marketKey);
+  expect(snap.active).to.equal(true);
+  expect(await contracts.passiveFuturesPoolFactory.isPoolActive(marketKey)).to.equal(true);
 
   return { oracle, oracleAddress, marketKey, pool, poolAddress };
 }
 
 async function depositEthToAccount(account: any, owner: any, amount: bigint) {
-  await (await account.connect(owner).depositETH({ value: amount })).wait();
+  await (await account.connect(owner).depositETH(await account.getAddress(), await account.vault(), { value: amount })).wait();
 }
 
 async function publishThroughTreasurer(
@@ -193,6 +195,10 @@ describe("Passive futures pool lifecycle integration", function () {
       contracts.futuresOrderBook.connect(actors.attacker).setPassivePublisher(attackerAddress, true),
     );
     await expectRevert(contracts.futuresOrderBook.connect(actors.attacker).clearPassiveSnapshot(marketKey));
+    await expectRevert(contracts.passiveFuturesPoolFactory.connect(actors.attacker).closePool(marketKey));
+    await expectRevert(contracts.passiveFuturesPoolFactory.connect(actors.attacker).reopenPool(marketKey));
+    await expectRevert(contracts.passiveFuturesPoolFactory.connect(actors.attacker).setPoolActive(marketKey, false));
+    await expectRevert(pool.connect(actors.attacker).setActive(false));
     await expectRevert(pool.connect(actors.attacker).setDepositsPaused(true));
     await expectRevert(pool.connect(actors.attacker).setWithdrawalsPaused(true));
   });
@@ -253,22 +259,22 @@ describe("Passive futures pool lifecycle integration", function () {
 
     await expectRevert(
       contracts.passiveFuturesSnapshotPublisher
-        .connect(actors.deployer)
+        .connect(actors.treasurer)
         .publishPassiveSnapshot(marketKey, 0n, 0n, INITIAL_PRICE, SIZE, 0n, "zero duration"),
     );
     await expectRevert(
       contracts.passiveFuturesSnapshotPublisher
-        .connect(actors.deployer)
+        .connect(actors.treasurer)
         .publishPassiveSnapshot(marketKey, 0n, 0n, 0n, 0n, 10n, "empty snapshot"),
     );
     await expectRevert(
       contracts.passiveFuturesSnapshotPublisher
-        .connect(actors.deployer)
+        .connect(actors.treasurer)
         .publishPassiveSnapshot(marketKey, INITIAL_PRICE, SIZE, INITIAL_PRICE, SIZE, 10n, "internal cross"),
     );
     await expectRevert(
       contracts.passiveFuturesSnapshotPublisher
-        .connect(actors.deployer)
+        .connect(actors.treasurer)
         .publishPassiveSnapshot(
           marketKey,
           0n,
@@ -281,13 +287,13 @@ describe("Passive futures pool lifecycle integration", function () {
     );
     await expectRevert(
       contracts.passiveFuturesSnapshotPublisher
-        .connect(actors.deployer)
+        .connect(actors.treasurer)
         .publishPassiveSnapshot(marketKey, 0n, 0n, INITIAL_PRICE, SIZE, 10n, ""),
     );
 
     await publishThroughTreasurer(
       contracts,
-      actors.deployer,
+      actors.treasurer,
       marketKey,
       0n,
       0n,
@@ -314,7 +320,7 @@ describe("Passive futures pool lifecycle integration", function () {
 
     await publishThroughTreasurer(
       contracts,
-      actors.deployer,
+      actors.treasurer,
       marketKey,
       0n,
       0n,
@@ -360,4 +366,97 @@ describe("Passive futures pool lifecycle integration", function () {
     expect(await contracts.vault.ethBalances(poolAddress)).to.equal(margin);
     await expectPoolEthInvariant(contracts, poolAddress, "after partial withdrawal with locked collateral");
   });
+
+  it("lets governance close passive pools and only allows inactive pools to publish reduce-only quotes", async function () {
+    const { addresses, contracts } = await loadIntegratedDeployment(ethers);
+    const actors = await loadActors(ethers);
+    const timelockSigner = await impersonateTimelock(ethers, addresses.sethxTimelock);
+    const { marketKey, pool, poolAddress } = await createMarketAndPool(contracts, timelockSigner, "PF-CLOSE");
+
+    const lpDeposit = 2n * WAD;
+    await (await pool.connect(actors.lp1).deposit({ value: lpDeposit })).wait();
+
+    await publishThroughTreasurer(
+      contracts,
+      actors.treasurer,
+      marketKey,
+      0n,
+      0n,
+      INITIAL_PRICE,
+      SIZE,
+      20n,
+      "active passive ask opens pool short",
+    );
+
+    const taker = await createNormalAccount(ethers, contracts.accountFactory, contracts.accountRegistry, actors.bob);
+    const takerAddress = await taker.getAddress();
+    await depositEthToAccount(taker, actors.bob, 2n * WAD);
+
+    await (
+      await taker
+        .connect(actors.bob)
+        .placeOrderFutures(await contracts.futuresOrderBook.getAddress(), marketKey, 0, INITIAL_PRICE, SIZE, 0, ETH)
+    ).wait();
+
+    const poolShortBeforeClose = await contracts.futuresContract.getPosition(poolAddress, marketKey, false);
+    expect(poolShortBeforeClose.isActive).to.equal(true);
+    expect(poolShortBeforeClose.size).to.equal(SIZE);
+
+    await publishThroughTreasurer(
+      contracts,
+      actors.treasurer,
+      marketKey,
+      0n,
+      0n,
+      INITIAL_PRICE,
+      SIZE,
+      20n,
+      "active passive ask before close",
+    );
+    expect((await contracts.futuresOrderBook.passiveSnapshot(marketKey)).exists).to.equal(true);
+
+    await (await contracts.passiveFuturesPoolFactory.connect(timelockSigner).closePool(marketKey)).wait();
+
+    const info = await contracts.passiveFuturesPoolFactory.poolForMarket(marketKey);
+    expect(info.status ?? info[3]).to.equal(2n);
+    expect(await contracts.passiveFuturesPoolFactory.isPoolActive(marketKey)).to.equal(false);
+    expect(await pool.active()).to.equal(false);
+    expect((await pool.getSnapshot()).active).to.equal(false);
+    expect((await contracts.futuresOrderBook.passiveSnapshot(marketKey)).exists).to.equal(false);
+
+    await expectRevert(pool.connect(actors.lp2).deposit({ value: 1n }));
+
+    await (await pool.connect(actors.lp1).requestWithdrawal(lpDeposit / 4n)).wait();
+    await (await pool.connect(actors.lp2).processWithdrawal(await actors.lp1.getAddress())).wait();
+
+    await expectRevert(
+      contracts.passiveFuturesSnapshotPublisher
+        .connect(actors.treasurer)
+        .publishPassiveSnapshot(marketKey, 0n, 0n, INITIAL_PRICE, SIZE, 20n, "inactive ask opens short"),
+    );
+
+    await publishThroughTreasurer(
+      contracts,
+      actors.treasurer,
+      marketKey,
+      INITIAL_PRICE,
+      SIZE,
+      0n,
+      0n,
+      20n,
+      "inactive bid closes pool short",
+    );
+
+    await (
+      await taker
+        .connect(actors.bob)
+        .placeOrderFutures(await contracts.futuresOrderBook.getAddress(), marketKey, 1, INITIAL_PRICE, SIZE, 0, ETH)
+    ).wait();
+
+    const poolShortAfterClose = await contracts.futuresContract.getPosition(poolAddress, marketKey, false);
+    const takerLongAfterClose = await contracts.futuresContract.getPosition(takerAddress, marketKey, true);
+    expect(poolShortAfterClose.size).to.equal(0n);
+    expect(takerLongAfterClose.size).to.equal(0n);
+  });
+
 });

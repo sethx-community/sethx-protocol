@@ -60,20 +60,47 @@ const shell = process.platform === "win32";
 function cleanLocalDeploymentOutput() {
   const fs = require("node:fs");
   const path = require("node:path");
-  const latestPath = path.join(
-    process.cwd(),
-    "deployments",
-    "local",
-    "latest.json",
-  );
+  const outputDir = path.join(process.cwd(), "deployments", "local");
 
-  if (!fs.existsSync(latestPath)) {
-    console.log("No local deployment found at deployments/local/latest.json");
+  if (!fs.existsSync(outputDir)) {
+    console.log("No local deployment output directory found at deployments/local");
     return;
   }
 
-  fs.unlinkSync(latestPath);
-  console.log("Removed deployments/local/latest.json");
+  let removed = 0;
+  for (const entry of fs.readdirSync(outputDir)) {
+    if (!entry.endsWith(".json")) continue;
+    fs.unlinkSync(path.join(outputDir, entry));
+    removed += 1;
+  }
+
+  console.log(
+    removed === 0
+      ? "No local deployment JSON files found in deployments/local"
+      : `Removed ${removed} local deployment JSON file(s) from deployments/local`,
+  );
+}
+
+function assertLocalOracleDeploymentOutput() {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const latestPath = path.join(process.cwd(), "deployments", "local", "latest.json");
+  const required = [
+    "usdcToken",
+    "wbtcToken",
+    "usdcEthFeed",
+    "wbtcEthFeed",
+    "usdcEthOracle",
+    "wbtcEthOracle",
+  ];
+
+  const deployment = JSON.parse(fs.readFileSync(latestPath, "utf8"));
+  const missing = required.filter((key) => !deployment.addresses?.[key]);
+  if (missing.length > 0) {
+    throw new Error(
+      `Local deployment is missing token/ETH oracle output(s): ${missing.join(", ")}`,
+    );
+  }
 }
 
 function run(command, commandArgs) {
@@ -103,4 +130,5 @@ for (const stage of stages) {
   run("npm", ["run", `deploy:local:${stage}`]);
 }
 
+assertLocalOracleDeploymentOutput();
 console.log("\n==> Local deployment complete through stage 89");

@@ -208,6 +208,38 @@ contract MarginOptionsOrderBook is AccessControl {
         uint256 orderExpiry,
         address feeToken
     ) external onlyAccount {
+        _placeOrder(marketKey, intent, size, askPrice, orderExpiry, feeToken);
+    }
+
+    function placeOrderForMarket(
+        string calldata ticker,
+        MarginOptionContract.OptionType optionType,
+        address oracle,
+        uint256 strikePrice,
+        uint256 marketExpiry,
+        uint256 collateralBps,
+        OrderIntent intent,
+        uint256 size,
+        uint256 askPrice,
+        uint256 orderExpiry,
+        address feeToken
+    ) external onlyAccount {
+        (bytes32 marketKey,,) = marginOptionContract.previewMarketKey(optionType, oracle, strikePrice, marketExpiry, collateralBps);
+        MarginOptionContract.MarketConfig memory existing = marginOptionContract.getMarket(marketKey);
+        if (!existing.initialized) {
+            marketKey = marginOptionContract.createMarket(ticker, optionType, oracle, strikePrice, marketExpiry, collateralBps);
+        }
+        _placeOrder(marketKey, intent, size, askPrice, orderExpiry, feeToken);
+    }
+
+    function _placeOrder(
+        bytes32 marketKey,
+        OrderIntent intent,
+        uint256 size,
+        uint256 askPrice,
+        uint256 orderExpiry,
+        address feeToken
+    ) internal {
         if (size == 0) revert InvalidAmount();
         if (askPrice == 0) revert InvalidPrice();
         if (orderExpiry <= block.timestamp) revert InvalidExpiry();
@@ -258,6 +290,7 @@ contract MarginOptionsOrderBook is AccessControl {
         }
 
         emit OrderPlaced(orderId, msg.sender, marketKey, intent, size, askPrice, feeToken);
+    
     }
 
     function acceptOrder(

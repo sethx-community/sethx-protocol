@@ -49,6 +49,8 @@ import { deployTreasuryTradeModule } from "./deploy/82-deploy-treasury-trade-mod
 import { setupTreasuryModules } from "./setup/83-setup-treasury-modules.js";
 import { deploySethxFeeConversionOracle } from "./deploy/84-deploy-sethx-fee-conversion-oracle.js";
 import { setupSethxFeeConversionOracle } from "./setup/84-setup-sethx-fee-conversion-oracle.js";
+import { deployTokenEthOracles } from "./deploy/84-deploy-token-eth-oracles.js";
+import { setupTokenEthOracles } from "./setup/84-setup-token-eth-oracles.js";
 import { deployPassiveFuturesSnapshotPublisher } from "./deploy/85-deploy-passive-futures-snapshot-publisher.js";
 import { deployPassiveFuturesPoolFactory } from "./deploy/86-deploy-passive-futures-pool-factory.js";
 import { setupPassiveFutures } from "./setup/87-setup-passive-futures.js";
@@ -156,6 +158,12 @@ type DeploymentOutput = {
     treasuryVaultModule?: string;
     treasuryTradeModule?: string;
     sethxFeeConversionOracle?: string;
+    usdcToken?: string;
+    wbtcToken?: string;
+    usdcEthFeed?: string;
+    wbtcEthFeed?: string;
+    usdcEthOracle?: string;
+    wbtcEthOracle?: string;
     passiveFuturesSnapshotPublisher?: string;
     passiveFuturesPoolFactory?: string;
     [key: string]: string | undefined;
@@ -595,7 +603,7 @@ async function runStage42(ethers: any, config: DeploymentConfig) {
       feeManager: setup.feeManager,
     },
     "42",
-    "Configure FeeManager accepted fee tokens, discount, delay, and queue role fee contexts",
+    "Configure FeeManager accepted fee tokens, delay, and queued fee/discount updates",
   );
 
   writeDeploymentOutput(config.outputDir, output);
@@ -1861,23 +1869,30 @@ async function runStage84(ethers: any, config: DeploymentConfig) {
   assertStageCompleted(existing, "83");
   assertStageNotCompleted(existing, "84");
 
-  const deployment = await deploySethxFeeConversionOracle(ethers);
+  const feeConversionDeployment = await deploySethxFeeConversionOracle(ethers);
+  const tokenEthOracleDeployment = await deployTokenEthOracles(
+    ethers,
+    config,
+    INITIAL_PROTOCOL_PARAMETERS,
+  );
 
   const mergedDeployment = {
     ...existing,
     addresses: {
       ...(existing.addresses ?? {}),
-      ...deployment.addresses,
+      ...feeConversionDeployment.addresses,
+      ...tokenEthOracleDeployment.addresses,
     },
     oracle: {
       ...(typeof existing.oracle === "object" && existing.oracle !== null
         ? existing.oracle
         : {}),
-      ...deployment.oracle,
+      ...feeConversionDeployment.oracle,
+      ...tokenEthOracleDeployment.oracle,
     },
   };
 
-  const setup = await setupSethxFeeConversionOracle(ethers, {
+  const feeConversionSetup = await setupSethxFeeConversionOracle(ethers, {
     addresses: {
       priceManager: requireAddress(mergedDeployment, "priceManager"),
       sethxToken: requireAddress(mergedDeployment, "sethxToken"),
@@ -1885,6 +1900,16 @@ async function runStage84(ethers: any, config: DeploymentConfig) {
         mergedDeployment,
         "sethxFeeConversionOracle",
       ),
+    },
+  });
+
+  const tokenEthOracleSetup = await setupTokenEthOracles(ethers, {
+    addresses: {
+      priceManager: requireAddress(mergedDeployment, "priceManager"),
+      usdcToken: requireAddress(mergedDeployment, "usdcToken"),
+      wbtcToken: requireAddress(mergedDeployment, "wbtcToken"),
+      usdcEthOracle: requireAddress(mergedDeployment, "usdcEthOracle"),
+      wbtcEthOracle: requireAddress(mergedDeployment, "wbtcEthOracle"),
     },
   });
 
@@ -1896,11 +1921,12 @@ async function runStage84(ethers: any, config: DeploymentConfig) {
         mergedDeployment.oracle !== null
           ? mergedDeployment.oracle
           : {}),
-        sethxFeeConversionOracle: setup.sethxFeeConversionOracle,
+        sethxFeeConversionOracle: feeConversionSetup.sethxFeeConversionOracle,
+        tokenEthOracles: tokenEthOracleSetup.tokenEthOracles,
       },
     },
     "84",
-    "Deploy and register SethxFeeConversionOracle",
+    "Deploy and register SethxFeeConversionOracle plus USDC/ETH and WBTC/ETH Chainlink-compatible oracles",
   );
 
   writeDeploymentOutput(config.outputDir, output);

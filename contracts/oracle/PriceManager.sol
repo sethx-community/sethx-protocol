@@ -325,10 +325,9 @@ contract PriceManager is AccessControl {
         address token,
         OracleContext context
     ) public view returns (bool ok, address oracle) {
-        if (!tokenAllowedForContext[token][context]) {
-            return (false, address(0));
-        }
-
+        // tokenAllowedForContext is an identity/authenticity display flag.
+        // Oracle usability is governed by explicit oracle approval, context approval,
+        // registration for this token/context, and freshness/status checks.
         address[] storage list = tokenContextOracles[token][context];
 
         for (uint256 i = 0; i < list.length; i++) {
@@ -478,17 +477,17 @@ contract PriceManager is AccessControl {
         return (true, _scalePriceToE18(rawPrice, IPriceOracle(oracle).decimals()));
     }
 
-   function isOracleUsableForFeeConversion(address oracle) public view returns (bool) {
-    OracleData memory od = oracles[oracle];
+    function isOracleUsableForFeeConversion(address oracle) public view returns (bool) {
+        OracleData memory od = oracles[oracle];
 
-    if (!od.approved) return false;
-    if (!contextApprovals[oracle][OracleContext.FEE_CONVERSION]) return false;
-    if (od.lastTimestamp == 0) return false;
-    if (od.status != OracleStatus.OK) return false;
-    if (od.lastPrice == 0) return false;
+        if (!od.approved) return false;
+        if (!contextApprovals[oracle][OracleContext.FEE_CONVERSION]) return false;
+        if (od.lastTimestamp == 0) return false;
+        if (od.status != OracleStatus.OK) return false;
+        if (od.lastPrice == 0) return false;
 
-    return true;
-}
+        return true;
+    }
 
     function getFeeConversionRate(
         address token
@@ -497,10 +496,8 @@ contract PriceManager is AccessControl {
             return (WAD, address(0));
         }
 
-        if (!tokenAllowedForContext[token][OracleContext.FEE_CONVERSION]) {
-            revert TokenNotAllowedForContext();
-        }
-
+        // tokenAllowedForContext is informational. Fee conversion requires an
+        // approved, registered, usable fee-conversion oracle for the token.
         address[] storage list = tokenContextOracles[token][OracleContext.FEE_CONVERSION];
 
         for (uint256 i = 0; i < list.length; i++) {
@@ -564,11 +561,11 @@ contract PriceManager is AccessControl {
     // Oracle interaction
     // -------------------------------------------------------------------------
 
-    function fetchPrice(address oracle, bytes calldata data) external {
+    function fetchPrice(address oracle) external {
         if (oracle == address(0)) revert ZeroAddress();
         if (!oracles[oracle].approved) revert OracleNotApproved();
 
-        IPriceOracle(oracle).fetchPrice(data);
+        IPriceOracle(oracle).fetchPrice();
     }
 
     function syncOracleData(address oracle) external {

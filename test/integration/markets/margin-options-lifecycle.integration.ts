@@ -58,6 +58,33 @@ async function mineToTimestamp(timestamp: bigint) {
   await ethers.provider.send("evm_mine", []);
 }
 
+function lastFridayAtNoonUtc(year: number, monthOneBased: number): bigint {
+  const firstNextMonth =
+    monthOneBased === 12
+      ? Date.UTC(year + 1, 0, 1, 0, 0, 0)
+      : Date.UTC(year, monthOneBased, 1, 0, 0, 0);
+  const d = new Date(firstNextMonth - 24 * 60 * 60 * 1000);
+  while (d.getUTCDay() !== 5) d.setUTCDate(d.getUTCDate() - 1);
+  d.setUTCHours(12, 0, 0, 0);
+  return BigInt(Math.floor(d.getTime() / 1000));
+}
+
+async function nextOptionExpiry(monthsAhead = 2, minDays = 30n): Promise<bigint> {
+  const now = await latestTimestamp();
+  const nowDate = new Date(Number(now) * 1000);
+  for (let i = monthsAhead; i < monthsAhead + 24; i++) {
+    const candidateDate = new Date(
+      Date.UTC(nowDate.getUTCFullYear(), nowDate.getUTCMonth() + i, 1),
+    );
+    const candidate = lastFridayAtNoonUtc(
+      candidateDate.getUTCFullYear(),
+      candidateDate.getUTCMonth() + 1,
+    );
+    if (candidate > now + minDays * 86_400n) return candidate;
+  }
+  throw new Error("no standardized option expiry found");
+}
+
 function premiumFor(amount: bigint, premiumPerUnit: bigint): bigint {
   return (amount * premiumPerUnit) / ONE;
 }
@@ -115,7 +142,7 @@ async function registerOptionSettlementOracle(
 }
 
 async function depositEth(account: any, owner: any, amount: bigint) {
-  await (await account.connect(owner).depositETH({ value: amount })).wait();
+  await (await account.connect(owner).depositETH(await account.getAddress(), await account.vault(), { value: amount })).wait();
 }
 
 async function snapshotEth(vault: any, accounts: string[]): Promise<EthSnapshot> {
@@ -178,7 +205,7 @@ async function getFee(
 
 async function createMarginMarket(contracts: any, governance: any) {
   const now = await latestTimestamp();
-  const expiry = now + 7n * 86_400n;
+  const expiry = await nextOptionExpiry(2, 30n);
   const oracle = await deployMockOracle("MARGIN/ETH", 8, 2n * 10n ** 8n);
   const oracleAddress = await registerOptionSettlementOracle(
     contracts,
@@ -189,7 +216,6 @@ async function createMarginMarket(contracts: any, governance: any) {
   );
 
   const strikeRaw = 2n * 10n ** 8n;
-  const incrementRaw = 10n ** 8n;
   const collateralBps = 10_000n;
 
   await (
@@ -200,7 +226,6 @@ async function createMarginMarket(contracts: any, governance: any) {
         MarginOptionType.Call,
         oracleAddress,
         strikeRaw,
-        incrementRaw,
         expiry,
         collateralBps,
       )
@@ -214,7 +239,7 @@ async function createMarginMarket(contracts: any, governance: any) {
 
 async function createBinaryMarket(contracts: any, governance: any) {
   const now = await latestTimestamp();
-  const expiry = now + 8n * 86_400n;
+  const expiry = await nextOptionExpiry(3, 45n);
   const oracle = await deployMockOracle("BINARY/ETH", 8, 2n * 10n ** 8n);
   const oracleAddress = await registerOptionSettlementOracle(
     contracts,
@@ -225,8 +250,6 @@ async function createBinaryMarket(contracts: any, governance: any) {
   );
 
   const strikeRaw = 2n * 10n ** 8n;
-  const incrementRaw = 10n ** 8n;
-
   await (
     await contracts.binaryMarginOptionContract
       .connect(governance)
@@ -235,7 +258,6 @@ async function createBinaryMarket(contracts: any, governance: any) {
         MarginOptionType.Call,
         oracleAddress,
         strikeRaw,
-        incrementRaw,
         expiry,
       )
   ).wait();
@@ -274,7 +296,7 @@ describe("Margin and binary margin options lifecycle integration", function () {
     await expectRevert(
       contracts.marginOptionContract
         .connect(attacker)
-        .createMarket("BAD", MarginOptionType.Call, await contracts.priceManager.getAddress(), 1n, 1n, 1n, 1n),
+        .setApprovedCollateralBps(9_000n, true),
     );
     await expectRevert(
       contracts.marginOptionContract.connect(attacker).setMarketActive(zeroKey, false),

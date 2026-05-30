@@ -72,12 +72,12 @@ function lendingMarketKey(expiry: bigint, riskLevel = LENDING_RISK_LEVEL): strin
 }
 
 async function depositEth(account: any, owner: any, amount: bigint) {
-  await (await account.connect(owner).depositETH({ value: amount })).wait();
+  await (await account.connect(owner).depositETH(await account.getAddress(), await account.vault(), { value: amount })).wait();
 }
 
 async function depositToken(token: any, account: any, owner: any, amount: bigint) {
   await (await token.connect(owner).approve(await account.getAddress(), amount)).wait();
-  await (await account.connect(owner).depositToken(await token.getAddress(), amount)).wait();
+  await (await account.connect(owner).depositToken(await token.getAddress(), amount, await account.getAddress(), await account.vault())).wait();
 }
 
 async function assertLockedNotAboveTotal(vault: any, accounts: string[], tokenAddresses: string[] = []) {
@@ -160,12 +160,14 @@ describe("Economic stress integration", function () {
     const sellers = [] as Array<{ account: any; owner: any; address: string }>;
     for (const owner of [actors.alice, actors.bob, actors.carol, actors.dave]) {
       const account = await createNormalAccount(ethers, contracts.accountFactory, contracts.accountRegistry, owner);
+      await depositEth(account, owner, ONE);
       await depositToken(assets.tokenA, account, owner, 1_000n * ONE);
       await depositToken(assets.tokenB, account, owner, 100n * ONE);
       sellers.push({ account, owner, address: await account.getAddress() });
     }
 
     const taker = await createNormalAccount(ethers, contracts.accountFactory, contracts.accountRegistry, actors.lp1);
+    await depositEth(taker, actors.lp1, ONE);
     await depositToken(assets.tokenA, taker, actors.lp1, 100n * ONE);
     await depositToken(assets.tokenB, taker, actors.lp1, 10_000n * ONE);
     const takerAddress = await taker.getAddress();

@@ -14,9 +14,6 @@ export async function setupBinaryMarginOptions(
     };
   } = {},
 ) {
-  const [deployer] = await ethers.getSigners();
-  const deployerAddress = await deployer.getAddress();
-
   const vault = await ethers.getContractAt(
     "SethxVault",
     deployment.addresses.sethxVault,
@@ -30,8 +27,6 @@ export async function setupBinaryMarginOptions(
   const vaultOrderbookRole = await vault.ORDERBOOK_ROLE();
   const contractOrderbookRole =
     await binaryMarginOptionContract.ORDERBOOK_ROLE();
-  const marketManagerRole =
-    await binaryMarginOptionContract.MARKET_MANAGER_ROLE();
 
   const currentPriceManager = await binaryMarginOptionContract.priceManager();
   if (ethers.getAddress(currentPriceManager) !== ethers.getAddress(deployment.addresses.priceManager)) {
@@ -80,20 +75,6 @@ export async function setupBinaryMarginOptions(
     await tx.wait();
   }
 
-  if (
-    !(await binaryMarginOptionContract.hasRole(
-      marketManagerRole,
-      deployerAddress,
-    ))
-  ) {
-    const tx = await binaryMarginOptionContract.grantRole(
-      marketManagerRole,
-      deployerAddress,
-    );
-    await tx.wait();
-  }
-
-
 
   const settlementPriceMaxWaitSeconds =
     parameters.binaryMarginOptions?.settlementPriceMaxWaitSeconds;
@@ -111,7 +92,6 @@ export async function setupBinaryMarginOptions(
       binaryMarginOptionContract: {
         vaultOrderbookRole: true,
         priceManager: deployment.addresses.priceManager,
-        deployerMarketManagerRole: true,
       },
       binaryMarginOptionsOrderBook: {
         vaultOrderbookRole: true,

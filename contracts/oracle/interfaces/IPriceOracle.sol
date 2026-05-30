@@ -17,7 +17,11 @@ interface IPriceOracle {
     function decimals() external view returns (uint8);
 
     /// @notice Triggers a price update.
-    function fetchPrice(bytes calldata data) external;
+    function fetchPrice() external;
+
+    /// @notice Returns the literal fetch function/formula used by fetchPrice.
+    /// @dev Serious market oracles should return the relevant fetchPrice code text so users can inspect where price data comes from and how it is transformed.
+    function fetchFormula() external view returns (string memory);
 
     /// @notice Returns metadata for display/exploration.
     function metadata()

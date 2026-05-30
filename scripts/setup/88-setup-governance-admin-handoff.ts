@@ -224,13 +224,6 @@ export async function setupGovernanceAdminHandoff(
     "binaryMarginOptionContractGovernorToTimelock",
   );
 
-  await grantRoleIfAddress(
-    "BinaryMarginOptionContract",
-    deployment.addresses.binaryMarginOptionContract,
-    "MARKET_MANAGER_ROLE",
-    timelock,
-    "binaryMarginOptionContractMarketManagerToTimelock",
-  );
 
   await grantRoleIfAddress(
     "MarginOptionContract",
@@ -248,13 +241,6 @@ export async function setupGovernanceAdminHandoff(
     "marginOptionContractGovernorToTimelock",
   );
 
-  await grantRoleIfAddress(
-    "MarginOptionContract",
-    deployment.addresses.marginOptionContract,
-    "MARKET_MANAGER_ROLE",
-    timelock,
-    "marginOptionContractMarketManagerToTimelock",
-  );
 
   await grantRoleIfAddress(
     "FuturesContract",

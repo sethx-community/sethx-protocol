@@ -53,19 +53,33 @@ export async function setupFeeManager(
   }
 
   if (
-    toBigIntValue(await feeManager.sethxDiscountBps()) !==
-    BigInt(params.sethxDiscountBps)
-  ) {
-    const tx = await feeManager.setSethxDiscount(params.sethxDiscountBps);
-    await tx.wait();
-  }
-
-  if (
     toBigIntValue(await feeManager.feeUpdateDelay()) !==
     BigInt(params.feeUpdateDelaySeconds)
   ) {
     const tx = await feeManager.setFeeUpdateDelay(params.feeUpdateDelaySeconds);
     await tx.wait();
+  }
+
+  const currentSethxDiscount = toBigIntValue(
+    await feeManager.sethxDiscountBps(),
+  );
+  let sethxDiscountStatus = "configured";
+
+  if (currentSethxDiscount !== BigInt(params.sethxDiscountBps)) {
+    const pendingBefore = await feeManager.pendingSethxDiscountUpdate();
+    const pendingMatches =
+      toBigIntValue(pendingBefore.discountBps) ===
+        BigInt(params.sethxDiscountBps) &&
+      toBigIntValue(pendingBefore.executeAfter) > 0n;
+
+    if (!pendingMatches) {
+      const tx = await feeManager.queueSethxDiscountUpdate(
+        params.sethxDiscountBps,
+      );
+      await tx.wait();
+    }
+
+    sethxDiscountStatus = "queued";
   }
 
   const contexts: Record<string, unknown>[] = [];
@@ -125,6 +139,8 @@ export async function setupFeeManager(
     });
   }
 
+  const pendingSethxDiscount = await feeManager.pendingSethxDiscountUpdate();
+
   return {
     feeManager: {
       ethAccepted: await feeManager.isAcceptedFeeToken(ethers.ZeroAddress),
@@ -132,6 +148,10 @@ export async function setupFeeManager(
         deployment.addresses.sethxToken,
       ),
       sethxDiscountBps: (await feeManager.sethxDiscountBps()).toString(),
+      pendingSethxDiscountBps: pendingSethxDiscount.discountBps.toString(),
+      pendingSethxDiscountExecuteAfter:
+        pendingSethxDiscount.executeAfter.toString(),
+      sethxDiscountStatus,
       feeUpdateDelay: (await feeManager.feeUpdateDelay()).toString(),
       contexts,
     },
