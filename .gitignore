@@ -1,21 +1,41 @@
-node_modules/
+# Local Hardware Build Outputs
 artifacts/
 cache/
-test/
+typechain/
 typechain-types/
 types/
+lib/
+
+# Local Testing and Temporary Coverage
+test/
+contracts/test/
 coverage/
 coverage.json
 frontend-seed-report.json
+.nyc_output
 
-.zip
+# Environmental Secret Dumps (Never Push)
 .env
 .env.*
 !.env.example
+secrets.json
 
-deployments/local/*.json
-deployments/testnet/*.json
-
-contracts/test/
-
+# Local and Testnet Deployment Records
+deployments/local/
+deployments/localhost/
+deployments/hardhat/
+deployments/testnet/
+deployments/sepolia/
 ignition/deployments/
+
+# General Packages & OS Files
+node_modules/
+.pnpm-store
+.pnp.*
+.cache
+.vite/
+.vscode/
+*.zip
+*.tgz
+*.log
+npm-debug.log*
