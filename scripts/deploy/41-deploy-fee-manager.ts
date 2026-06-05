@@ -1,3 +1,5 @@
+import { safeDeployContract } from "./safe-deploy-contract.js";
+
 export async function deployFeeManager(
   ethers: any,
   deployment: {
@@ -10,12 +12,11 @@ export async function deployFeeManager(
   const [deployer] = await ethers.getSigners();
   const deployerAddress = await deployer.getAddress();
 
-  const feeManager = await ethers.deployContract("FeeManager", [
+  const feeManager = await safeDeployContract(ethers, "FeeManager", [
     deployment.addresses.sethxToken,
     deployment.addresses.priceManager,
     deployerAddress,
   ]);
-  await feeManager.waitForDeployment();
 
   return {
     feeManager,

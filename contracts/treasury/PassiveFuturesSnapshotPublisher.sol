@@ -66,7 +66,7 @@ contract PassiveFuturesSnapshotPublisher is TreasuryModuleBase {
         uint128 askSize,
         uint64 validForBlocks,
         string calldata memo
-    ) external onlyLiquidityTreasurer {
+    ) external onlyPassiveQuotePublisher {
         if (bytes(memo).length == 0) revert EmptyMemo();
 
         futuresOrderBook.publishPassiveSnapshot(

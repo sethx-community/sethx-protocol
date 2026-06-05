@@ -18,7 +18,13 @@ contract SethxVault is AccessControl, ReentrancyGuard, IERC721Receiver {
     bytes32 public constant TREASURY_ROLE = keccak256("TREASURY_ROLE");
     bytes32 public constant SETTLEMENT_ROLE = keccak256("SETTLEMENT_ROLE");
 
+    uint256 public constant REFERRAL_SHARE_BPS = 3_000;
+    uint256 public constant BPS_DENOMINATOR = 10_000;
+    uint256 public constant REFERRAL_THRESHOLD_ETH_VALUE = 25 ether;
+    uint256 public constant SETHX_PER_ETH = 20_000;
+
     AccountRegistry public immutable accountRegistry;
+    address public immutable sethxToken;
 
     enum TokenType {
         ERC20,
@@ -48,6 +54,9 @@ contract SethxVault is AccessControl, ReentrancyGuard, IERC721Receiver {
 
     mapping(address => bool) public isERC20;
     mapping(address => bool) public isERC721;
+
+    mapping(address => uint256) public referredFeeEthValue;
+    mapping(address => bool) public isApprovedReferrer;
 
     address[] private erc20Tokens;
     address[] private erc721Tokens;
@@ -131,6 +140,24 @@ contract SethxVault is AccessControl, ReentrancyGuard, IERC721Receiver {
     event TreasuryWithdrawnETH(address indexed to, uint256 amount);
     event TreasuryWithdrawnERC20(address indexed token, address indexed to, uint256 amount);
 
+    event ReferralFeeTracked(
+        address indexed referrer,
+        address indexed payer,
+        address indexed token,
+        uint256 feeAmount,
+        uint256 ethValueAdded,
+        uint256 totalEthValue
+    );
+    event ReferrerApproved(address indexed referrer, uint256 totalEthValue);
+    event ReferralFeeShared(
+        address indexed referrer,
+        address indexed payer,
+        address indexed token,
+        uint256 grossFee,
+        uint256 referralShare,
+        uint256 treasuryShare
+    );
+
     // ----- Modifiers
     modifier onlyAccount() {
         if (
@@ -168,10 +195,12 @@ contract SethxVault is AccessControl, ReentrancyGuard, IERC721Receiver {
     error NotLocked();
     error ProtocolTreasuryNotSet();
 
-    constructor(address registry, address admin) {
-        if (registry == address(0) || admin == address(0)) revert ZeroAddress();
+    constructor(address registry, address admin, address _sethxToken) {
+        if (registry == address(0) || admin == address(0) || _sethxToken == address(0))
+            revert ZeroAddress();
 
         accountRegistry = AccountRegistry(registry);
+        sethxToken = _sethxToken;
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(GOVERNOR_ROLE, admin);
@@ -562,26 +591,77 @@ contract SethxVault is AccessControl, ReentrancyGuard, IERC721Receiver {
         address token,
         uint256 amount,
         string calldata reason,
-        bool /*fixedFee*/
+        address referrer
     ) external onlyRole(ORDERBOOK_ROLE) {
         if (account == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
+
+        bool validReferrer = _isValidReferrer(account, referrer);
+        bool approvedBeforeCharge = validReferrer && isApprovedReferrer[referrer];
+
+        if (validReferrer && !approvedBeforeCharge) {
+            _trackReferralThreshold(referrer, account, token, amount);
+        }
+
+        uint256 referralShare;
+        if (approvedBeforeCharge) {
+            referralShare = (amount * REFERRAL_SHARE_BPS) / BPS_DENOMINATOR;
+        }
+
+        uint256 treasuryShare = amount - referralShare;
 
         if (token == address(0)) {
             if (ethLocked[account] < amount) revert InsufficientLockedBalance();
             if (ethBalances[account] < amount) revert InsufficientFreeBalance();
             ethLocked[account] -= amount;
             ethBalances[account] -= amount;
-            treasuryEthBalance += amount;
+            treasuryEthBalance += treasuryShare;
+            if (referralShare > 0) ethBalances[referrer] += referralShare;
         } else {
             if (erc20Locked[account][token] < amount) revert InsufficientLockedBalance();
             if (erc20Balances[account][token] < amount) revert InsufficientFreeBalance();
             erc20Locked[account][token] -= amount;
             erc20Balances[account][token] -= amount;
-            treasuryBalances[token] += amount;
+            treasuryBalances[token] += treasuryShare;
+            if (referralShare > 0) erc20Balances[referrer][token] += referralShare;
         }
 
         emit FeeCharged(account, token, amount, reason);
+        if (referralShare > 0) {
+            emit ReferralFeeShared(referrer, account, token, amount, referralShare, treasuryShare);
+        }
+    }
+
+    function _isValidReferrer(address payer, address referrer) internal view returns (bool) {
+        if (referrer == address(0)) return false;
+        if (referrer == payer) return false;
+        return accountRegistry.isAccount(referrer);
+    }
+
+    function _trackReferralThreshold(
+        address referrer,
+        address payer,
+        address token,
+        uint256 amount
+    ) internal {
+        uint256 ethValue = _referralEthValue(token, amount);
+        if (ethValue == 0) return;
+
+        uint256 total = referredFeeEthValue[referrer] + ethValue;
+        referredFeeEthValue[referrer] = total;
+
+        emit ReferralFeeTracked(referrer, payer, token, amount, ethValue, total);
+
+        if (total >= REFERRAL_THRESHOLD_ETH_VALUE) {
+            isApprovedReferrer[referrer] = true;
+            emit ReferrerApproved(referrer, total);
+        }
+    }
+
+    function _referralEthValue(address token, uint256 amount) internal view returns (uint256) {
+        if (token == address(0)) return amount;
+        if (token == sethxToken && sethxToken != address(0)) return amount / SETHX_PER_ETH;
+        return 0;
     }
 
     // =========================================================

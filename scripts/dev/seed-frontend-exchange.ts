@@ -75,14 +75,22 @@ const TOKEN_ETH_ORACLE_CONFIGS = [
   },
 ] as const;
 
-async function signerForAddress(signers: any[], address: string, fallbackIndex: number): Promise<any> {
+async function signerForAddress(
+  signers: any[],
+  address: string,
+  fallbackIndex: number,
+): Promise<any> {
   const normalized = ethers.getAddress(address);
   for (const signer of signers) {
-    if (ethers.getAddress(await signer.getAddress()) === normalized) return signer;
+    if (ethers.getAddress(await signer.getAddress()) === normalized)
+      return signer;
   }
 
   const fallback = signers[fallbackIndex];
-  if (!fallback) throw new Error(`Configured treasurer ${normalized} is not available as a local signer.`);
+  if (!fallback)
+    throw new Error(
+      `Configured treasurer ${normalized} is not available as a local signer.`,
+    );
   return fallback;
 }
 
@@ -124,7 +132,6 @@ function readDeployment() {
   return JSON.parse(fs.readFileSync(file, "utf8"));
 }
 
-
 function optionalAddress(deployment: any, key: string): string | undefined {
   const value = deployment.addresses?.[key];
   if (!value || value === ETH) return undefined;
@@ -136,7 +143,6 @@ function requireAddress(deployment: any, key: string): string {
   if (!value) throw new Error(`Missing deployed address: ${key}`);
   return value;
 }
-
 
 async function getContracts(deployment: any) {
   const addresses = {
@@ -178,7 +184,6 @@ async function getContracts(deployment: any) {
     ),
     futuresContract: requireAddress(deployment, "futuresContract"),
     futuresOrderBook: requireAddress(deployment, "futuresOrderBook"),
-    settlementManager: requireAddress(deployment, "settlementManager"),
     lendingContract: requireAddress(deployment, "lendingContract"),
     lendingOrderBook: requireAddress(deployment, "lendingOrderBook"),
     riskModule: requireAddress(deployment, "riskModule"),
@@ -237,8 +242,14 @@ async function getContracts(deployment: any) {
     feeManager: await ethers.getContractAt("FeeManager", addresses.feeManager),
     usdcToken: await ethers.getContractAt("MockERC20", addresses.usdcToken),
     wbtcToken: await ethers.getContractAt("MockERC20", addresses.wbtcToken),
-    usdcEthOracle: await ethers.getContractAt("ChainlinkUsdcEthOracle", addresses.usdcEthOracle),
-    wbtcEthOracle: await ethers.getContractAt("ChainlinkWbtcEthOracle", addresses.wbtcEthOracle),
+    usdcEthOracle: await ethers.getContractAt(
+      "ChainlinkUsdcEthOracle",
+      addresses.usdcEthOracle,
+    ),
+    wbtcEthOracle: await ethers.getContractAt(
+      "ChainlinkWbtcEthOracle",
+      addresses.wbtcEthOracle,
+    ),
     tokenSpotOrderBook: await ethers.getContractAt(
       "TokenSpotOrderBook",
       addresses.tokenSpotOrderBook,
@@ -279,10 +290,7 @@ async function getContracts(deployment: any) {
       "FuturesOrderBook",
       addresses.futuresOrderBook,
     ),
-    settlementManager: await ethers.getContractAt(
-      "SettlementManager",
-      addresses.settlementManager,
-    ),
+
     lendingContract: await ethers.getContractAt(
       "LendingContract",
       addresses.lendingContract,
@@ -319,7 +327,6 @@ async function latestTimestamp(): Promise<bigint> {
   return BigInt(block.timestamp);
 }
 
-
 function toBigIntValue(value: unknown): bigint {
   if (typeof value === "bigint") return value;
   if (typeof value === "number") return BigInt(value);
@@ -346,18 +353,24 @@ async function advanceLocalTimeTo(timestamp: bigint): Promise<void> {
   await ethers.provider.send("evm_mine", []);
 }
 
-async function executeQueuedFeeSetup(contracts: any, governance: any): Promise<void> {
+async function executeQueuedFeeSetup(
+  contracts: any,
+  governance: any,
+): Promise<void> {
   const params = INITIAL_PROTOCOL_PARAMETERS.feeManager;
   const feeManager = contracts.feeManager.connect(governance);
   let executeAfter = 0n;
 
-  const pendingDiscount = await contracts.feeManager.pendingSethxDiscountUpdate();
+  const pendingDiscount =
+    await contracts.feeManager.pendingSethxDiscountUpdate();
   if (toBigIntValue(pendingDiscount.executeAfter) > executeAfter) {
     executeAfter = toBigIntValue(pendingDiscount.executeAfter);
   }
 
   for (const context of params.contexts) {
-    const pending = await contracts.feeManager.pendingRoleUpdates(context.context);
+    const pending = await contracts.feeManager.pendingRoleUpdates(
+      context.context,
+    );
     if (toBigIntValue(pending.executeAfter) > executeAfter) {
       executeAfter = toBigIntValue(pending.executeAfter);
     }
@@ -368,7 +381,8 @@ async function executeQueuedFeeSetup(contracts: any, governance: any): Promise<v
     await advanceLocalTimeTo(executeAfter + 1n);
   }
 
-  const discountAfterWait = await contracts.feeManager.pendingSethxDiscountUpdate();
+  const discountAfterWait =
+    await contracts.feeManager.pendingSethxDiscountUpdate();
   if (toBigIntValue(discountAfterWait.executeAfter) > 0n) {
     await (await feeManager.executeSethxDiscountUpdate()).wait();
   }
@@ -378,13 +392,17 @@ async function executeQueuedFeeSetup(contracts: any, governance: any): Promise<v
     const alreadyConfigured =
       current.configured === true &&
       toBigIntValue(current.makerFixedFee) === context.makerFixedFeeEth &&
-      toBigIntValue(current.makerPercentageFee) === BigInt(context.makerPercentageFeeBps) &&
+      toBigIntValue(current.makerPercentageFee) ===
+        BigInt(context.makerPercentageFeeBps) &&
       toBigIntValue(current.takerFixedFee) === context.takerFixedFeeEth &&
-      toBigIntValue(current.takerPercentageFee) === BigInt(context.takerPercentageFeeBps);
+      toBigIntValue(current.takerPercentageFee) ===
+        BigInt(context.takerPercentageFeeBps);
 
     if (alreadyConfigured) continue;
 
-    const pending = await contracts.feeManager.pendingRoleUpdates(context.context);
+    const pending = await contracts.feeManager.pendingRoleUpdates(
+      context.context,
+    );
     if (toBigIntValue(pending.executeAfter) > 0n) {
       await (await feeManager.executeRoleFeeUpdate(context.context)).wait();
     }
@@ -528,10 +546,14 @@ async function mintAssets(assets: any, recipients: string[]) {
       await assets.tokenC.mint(recipient, ethers.parseEther("1000000"))
     ).wait();
     if (assets.usdcToken?.mint) {
-      await (await assets.usdcToken.mint(recipient, ethers.parseUnits("1000000", 6))).wait();
+      await (
+        await assets.usdcToken.mint(recipient, ethers.parseUnits("1000000", 6))
+      ).wait();
     }
     if (assets.wbtcToken?.mint) {
-      await (await assets.wbtcToken.mint(recipient, ethers.parseUnits("100", 8))).wait();
+      await (
+        await assets.wbtcToken.mint(recipient, ethers.parseUnits("100", 8))
+      ).wait();
     }
     for (let i = 0; i < 8; i++) await (await assets.nft.mint(recipient)).wait();
   }
@@ -556,7 +578,13 @@ async function createLendingAccount(contracts: any, owner: any) {
 }
 
 async function depositEth(account: any, owner: any, amount: bigint) {
-  await (await account.connect(owner).depositETH(await account.getAddress(), await account.vault(), { value: amount })).wait();
+  await (
+    await account
+      .connect(owner)
+      .depositETH(await account.getAddress(), await account.vault(), {
+        value: amount,
+      })
+  ).wait();
 }
 
 async function depositToken(
@@ -569,7 +597,14 @@ async function depositToken(
     await token.connect(owner).approve(await account.getAddress(), amount)
   ).wait();
   await (
-    await account.connect(owner).depositToken(await token.getAddress(), amount, await account.getAddress(), await account.vault())
+    await account
+      .connect(owner)
+      .depositToken(
+        await token.getAddress(),
+        amount,
+        await account.getAddress(),
+        await account.vault(),
+      )
   ).wait();
 }
 
@@ -580,11 +615,17 @@ async function mintAndDepositNft(nft: any, account: any, owner: any) {
     await nft.connect(owner).setApprovalForAll(await account.getAddress(), true)
   ).wait();
   await (
-    await account.connect(owner).depositNFT721(await nft.getAddress(), tokenId, await account.getAddress(), await account.vault())
+    await account
+      .connect(owner)
+      .depositNFT721(
+        await nft.getAddress(),
+        tokenId,
+        await account.getAddress(),
+        await account.vault(),
+      )
   ).wait();
   return tokenId;
 }
-
 
 async function refreshLocalMockTokenEthFeeds(
   contracts: any,
@@ -653,12 +694,16 @@ async function ensureTokenEthOracleSetup(
     if (!(await contracts.priceManager.isApprovedOracle(oracleAddress))) {
       await tx(
         `approve oracle ${config.label}`,
-        () => contracts.priceManager.connect(governance).approveOracle(oracleAddress),
+        () =>
+          contracts.priceManager
+            .connect(governance)
+            .approveOracle(oracleAddress),
         report,
       );
     }
 
-    const metadata = await contracts.priceManager.getOracleMetadata(oracleAddress);
+    const metadata =
+      await contracts.priceManager.getOracleMetadata(oracleAddress);
     if (
       !sameAddress(metadata.token, tokenAddress) ||
       metadata.label !== config.label ||
@@ -680,7 +725,12 @@ async function ensureTokenEthOracleSetup(
     }
 
     for (const context of TOKEN_ETH_ORACLE_CONTEXTS) {
-      if (!(await contracts.priceManager.isOracleApprovedFor(oracleAddress, context))) {
+      if (
+        !(await contracts.priceManager.isOracleApprovedFor(
+          oracleAddress,
+          context,
+        ))
+      ) {
         await tx(
           `approve oracle ${config.label} context ${context}`,
           () =>
@@ -691,7 +741,12 @@ async function ensureTokenEthOracleSetup(
         );
       }
 
-      if (!(await contracts.priceManager.tokenAllowedForContext(tokenAddress, context))) {
+      if (
+        !(await contracts.priceManager.tokenAllowedForContext(
+          tokenAddress,
+          context,
+        ))
+      ) {
         await tx(
           `allow token ${config.tokenKey} context ${context}`,
           () =>
@@ -712,7 +767,11 @@ async function ensureTokenEthOracleSetup(
           () =>
             contracts.priceManager
               .connect(governance)
-              .registerOracleForTokenContext(tokenAddress, context, oracleAddress),
+              .registerOracleForTokenContext(
+                tokenAddress,
+                context,
+                oracleAddress,
+              ),
           report,
         );
       }
@@ -729,9 +788,8 @@ async function ensureTokenEthOracleSetup(
       report,
     );
 
-    const usableForFutures = await contracts.priceManager.isOracleUsableForFutures(
-      oracleAddress,
-    );
+    const usableForFutures =
+      await contracts.priceManager.isOracleUsableForFutures(oracleAddress);
     if (!usableForFutures) {
       throw new Error(
         `${config.label} is still not usable for futures after setup. Check latest price timestamp/status and PriceManager staleTimeout.`,
@@ -811,7 +869,6 @@ async function createMarginMarket(
       contracts.marginOptionContract
         .connect(governance)
         .createMarket(
-          label,
           MarginOptionType.Call,
           oracleAddress,
           strikePrice,
@@ -849,7 +906,6 @@ async function createBinaryMarket(
       contracts.binaryMarginOptionContract
         .connect(governance)
         .createMarket(
-          label,
           MarginOptionType.Call,
           oracleAddress,
           strikePrice,
@@ -1296,8 +1352,10 @@ async function seedMarginBooks(
   const price = ethers.parseEther("0.1");
   const writerFunding =
     reportKey === "marginOptions"
-      ? (await contracts.marginOptionContract.getRequiredMargin(marketKey, size)) +
-        ethers.parseEther("1")
+      ? (await contracts.marginOptionContract.getRequiredMargin(
+          marketKey,
+          size,
+        )) + ethers.parseEther("1")
       : size + ethers.parseEther("1");
   const start = await orderbook.nextOrderId();
   for (let i = 0; i < 20; i++) {
@@ -1569,11 +1627,15 @@ async function main() {
     report.accounts.lending.push(await account.getAddress());
   }
 
-  console.log("Ensuring deployed USDC/ETH and WBTC/ETH oracles are approved, whitelisted, registered, fetched, and synced...");
+  console.log(
+    "Ensuring deployed USDC/ETH and WBTC/ETH oracles are approved, whitelisted, registered, fetched, and synced...",
+  );
   await refreshLocalMockTokenEthFeeds(contracts, addresses, report);
   await ensureTokenEthOracleSetup(contracts, addresses, governance, report);
 
-  console.log("Registering markets with deployed USDC/ETH and WBTC/ETH oracles...");
+  console.log(
+    "Registering markets with deployed USDC/ETH and WBTC/ETH oracles...",
+  );
   const futures1 = await createFuturesMarket(
     contracts,
     governance,
@@ -1742,7 +1804,11 @@ async function main() {
 
     await tx(
       "fund protocol treasury tokenA quote",
-      () => assets.tokenA.mint(addresses.protocolTreasury, treasurySpotQuoteFunding),
+      () =>
+        assets.tokenA.mint(
+          addresses.protocolTreasury,
+          treasurySpotQuoteFunding,
+        ),
       report,
       false,
     );

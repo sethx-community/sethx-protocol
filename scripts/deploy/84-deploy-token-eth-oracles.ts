@@ -1,7 +1,8 @@
+import { safeDeployContract } from "./safe-deploy-contract.js";
+
 import { getAddress } from "ethers";
 
 const LOCAL_USDC_ETH_PRICE_E18 = 250_000_000_000_000n; // 0.00025 ETH per USDC
-const LOCAL_WBTC_ETH_PRICE_E18 = 25n * 10n ** 18n; // 25 ETH per WBTC
 
 export async function deployTokenEthOracles(
   ethers: any,
@@ -19,66 +20,41 @@ export async function deployTokenEthOracles(
   const maxStaleness = parameters.oracleDefaults.staleTimeoutSeconds;
 
   let usdcTokenAddress: string;
-  let wbtcTokenAddress: string;
   let usdcEthFeedAddress: string;
-  let wbtcEthFeedAddress: string;
   let usdcEthMockFeedInitialPriceE18: string | undefined;
-  let wbtcEthMockFeedInitialPriceE18: string | undefined;
 
   if (config.environment === "local") {
-    const usdcToken = await ethers.deployContract("MockERC20", ["USD Coin", "USDC", 6]);
-    await usdcToken.waitForDeployment();
+    const usdcToken = await safeDeployContract(ethers, "MockERC20", [
+      "USD Coin",
+      "USDC",
+      6,
+    ]);
     usdcTokenAddress = await usdcToken.getAddress();
 
-    const wbtcToken = await ethers.deployContract("MockERC20", ["Wrapped Bitcoin", "WBTC", 8]);
-    await wbtcToken.waitForDeployment();
-    wbtcTokenAddress = await wbtcToken.getAddress();
-
-    const usdcEthFeed = await ethers.deployContract("MockChainlinkAggregatorV3", [
-      18,
-      LOCAL_USDC_ETH_PRICE_E18,
-    ]);
-    await usdcEthFeed.waitForDeployment();
+    const usdcEthFeed = await safeDeployContract(
+      ethers,
+      "MockChainlinkAggregatorV3",
+      [18, LOCAL_USDC_ETH_PRICE_E18],
+    );
     usdcEthFeedAddress = await usdcEthFeed.getAddress();
 
-    const wbtcEthFeed = await ethers.deployContract("MockChainlinkAggregatorV3", [
-      18,
-      LOCAL_WBTC_ETH_PRICE_E18,
-    ]);
-    await wbtcEthFeed.waitForDeployment();
-    wbtcEthFeedAddress = await wbtcEthFeed.getAddress();
-
     usdcEthMockFeedInitialPriceE18 = LOCAL_USDC_ETH_PRICE_E18.toString();
-    wbtcEthMockFeedInitialPriceE18 = LOCAL_WBTC_ETH_PRICE_E18.toString();
   } else {
     usdcTokenAddress = getAddress(requireEnv("SETHX_USDC_TOKEN_ADDRESS"));
-    wbtcTokenAddress = getAddress(requireEnv("SETHX_WBTC_TOKEN_ADDRESS"));
     usdcEthFeedAddress = getAddress(requireEnv("SETHX_USDC_ETH_FEED_ADDRESS"));
-    wbtcEthFeedAddress = getAddress(requireEnv("SETHX_WBTC_ETH_FEED_ADDRESS"));
   }
 
-  const usdcEthOracle = await ethers.deployContract("ChainlinkUsdcEthOracle", [
-    deployerAddress,
-    usdcEthFeedAddress,
-    maxStaleness,
-  ]);
-  await usdcEthOracle.waitForDeployment();
-
-  const wbtcEthOracle = await ethers.deployContract("ChainlinkWbtcEthOracle", [
-    deployerAddress,
-    wbtcEthFeedAddress,
-    maxStaleness,
-  ]);
-  await wbtcEthOracle.waitForDeployment();
+  const usdcEthOracle = await safeDeployContract(
+    ethers,
+    "ChainlinkUsdcEthOracle",
+    [deployerAddress, usdcEthFeedAddress, maxStaleness],
+  );
 
   return {
     addresses: {
       usdcToken: usdcTokenAddress,
-      wbtcToken: wbtcTokenAddress,
       usdcEthFeed: usdcEthFeedAddress,
-      wbtcEthFeed: wbtcEthFeedAddress,
       usdcEthOracle: await usdcEthOracle.getAddress(),
-      wbtcEthOracle: await wbtcEthOracle.getAddress(),
     },
     oracle: {
       tokenEthOracles: {
@@ -88,13 +64,6 @@ export async function deployTokenEthOracles(
           oracle: await usdcEthOracle.getAddress(),
           maxStaleness: maxStaleness.toString(),
           mockFeedInitialPriceE18: usdcEthMockFeedInitialPriceE18,
-        },
-        wbtcEth: {
-          token: wbtcTokenAddress,
-          feed: wbtcEthFeedAddress,
-          oracle: await wbtcEthOracle.getAddress(),
-          maxStaleness: maxStaleness.toString(),
-          mockFeedInitialPriceE18: wbtcEthMockFeedInitialPriceE18,
         },
       },
     },

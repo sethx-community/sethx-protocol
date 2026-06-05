@@ -1,3 +1,5 @@
+import { safeDeployContract } from "./safe-deploy-contract.js";
+
 export async function deployFuturesValuationAdapter(
   ethers: any,
   deployment: {
@@ -10,7 +12,7 @@ export async function deployFuturesValuationAdapter(
   const [deployer] = await ethers.getSigners();
   const deployerAddress = await deployer.getAddress();
 
-  const futuresValuationAdapter = await ethers.deployContract(
+  const futuresValuationAdapter = await safeDeployContract(ethers, 
     "FuturesValuationAdapter",
     [
       deployment.addresses.futuresContract,
@@ -18,8 +20,6 @@ export async function deployFuturesValuationAdapter(
       deployerAddress,
     ],
   );
-
-  await futuresValuationAdapter.waitForDeployment();
 
   return {
     futuresValuationAdapter,

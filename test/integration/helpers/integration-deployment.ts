@@ -37,7 +37,6 @@ export async function loadIntegratedDeployment(ethers: any) {
     ),
     futuresContract: requireLocalAddress(deployment, "futuresContract"),
     futuresOrderBook: requireLocalAddress(deployment, "futuresOrderBook"),
-    settlementManager: requireLocalAddress(deployment, "settlementManager"),
     lendingContract: requireLocalAddress(deployment, "lendingContract"),
     lendingOrderBook: requireLocalAddress(deployment, "lendingOrderBook"),
     riskModule: requireLocalAddress(deployment, "riskModule"),
@@ -118,10 +117,6 @@ export async function loadIntegratedDeployment(ethers: any) {
     futuresOrderBook: await ethers.getContractAt(
       "FuturesOrderBook",
       addresses.futuresOrderBook,
-    ),
-    settlementManager: await ethers.getContractAt(
-      "SettlementManager",
-      addresses.settlementManager,
     ),
     lendingContract: await ethers.getContractAt(
       "LendingContract",

@@ -1,3 +1,5 @@
+import { safeDeployContract } from "./safe-deploy-contract.js";
+
 export async function deployNftSpotOrderBook(
   ethers: any,
   deployment: {
@@ -11,14 +13,12 @@ export async function deployNftSpotOrderBook(
   const [deployer] = await ethers.getSigners();
   const deployerAddress = await deployer.getAddress();
 
-  const nftSpotOrderBook = await ethers.deployContract("NFTSpotOrderBook", [
+  const nftSpotOrderBook = await safeDeployContract(ethers, "NFTSpotOrderBook", [
     deployment.addresses.sethxVault,
     deployment.addresses.feeManager,
     deployment.addresses.accountRegistry,
     deployerAddress,
   ]);
-
-  await nftSpotOrderBook.waitForDeployment();
 
   return {
     nftSpotOrderBook,

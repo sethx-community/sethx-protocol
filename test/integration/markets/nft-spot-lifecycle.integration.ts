@@ -58,24 +58,41 @@ async function getFee(
 
 function addIfToken(current: bigint, fee: FeeOutput, token: string): bigint {
   let next = current;
+
   if (ethers.getAddress(fee.fixedToken) === ethers.getAddress(token)) {
     next += fee.fixedAmount;
   }
+
   if (ethers.getAddress(fee.percentageToken) === ethers.getAddress(token)) {
     next += fee.percentageAmount;
   }
+
   return next;
 }
 
 function feeAmountForToken(fee: FeeOutput, token: string): bigint {
   let amount = 0n;
+
   if (ethers.getAddress(fee.fixedToken) === ethers.getAddress(token)) {
     amount += fee.fixedAmount;
   }
+
   if (ethers.getAddress(fee.percentageToken) === ethers.getAddress(token)) {
     amount += fee.percentageAmount;
   }
+
   return amount;
+}
+
+function maxFeeAmountForToken(
+  first: FeeOutput,
+  second: FeeOutput,
+  token: string,
+): bigint {
+  const firstAmount = feeAmountForToken(first, token);
+  const secondAmount = feeAmountForToken(second, token);
+
+  return firstAmount > secondAmount ? firstAmount : secondAmount;
 }
 
 async function depositTokenToAccount(
@@ -85,13 +102,33 @@ async function depositTokenToAccount(
   amount: bigint,
 ) {
   if (amount === 0n) return;
-  await (await token.connect(owner).approve(await account.getAddress(), amount)).wait();
-  await (await account.connect(owner).depositToken(await token.getAddress(), amount, await account.getAddress(), await account.vault())).wait();
+
+  await (
+    await token.connect(owner).approve(await account.getAddress(), amount)
+  ).wait();
+
+  await (
+    await account
+      .connect(owner)
+      .depositToken(
+        await token.getAddress(),
+        amount,
+        await account.getAddress(),
+        await account.vault(),
+      )
+  ).wait();
 }
 
 async function depositEthToAccount(account: any, owner: any, amount: bigint) {
   if (amount === 0n) return;
-  await (await account.connect(owner).depositETH(await account.getAddress(), await account.vault(), { value: amount })).wait();
+
+  await (
+    await account
+      .connect(owner)
+      .depositETH(await account.getAddress(), await account.vault(), {
+        value: amount,
+      })
+  ).wait();
 }
 
 async function depositNftToAccount(
@@ -100,8 +137,20 @@ async function depositNftToAccount(
   owner: any,
   tokenId: bigint,
 ) {
-  await (await nft.connect(owner).approve(await account.getAddress(), tokenId)).wait();
-  await (await account.connect(owner).depositNFT721(await nft.getAddress(), tokenId, await account.getAddress(), await account.vault())).wait();
+  await (
+    await nft.connect(owner).approve(await account.getAddress(), tokenId)
+  ).wait();
+
+  await (
+    await account
+      .connect(owner)
+      .depositNFT721(
+        await nft.getAddress(),
+        tokenId,
+        await account.getAddress(),
+        await account.vault(),
+      )
+  ).wait();
 }
 
 async function expectQuoteState(
@@ -133,12 +182,16 @@ async function expectNftVaultState(
   expectedLocked: boolean,
 ) {
   const nftAddress = await nft.getAddress();
-  expect(await vault.erc721Owned(ownerAccount, nftAddress, tokenId), "NFT owned flag").to.equal(
-    expectedOwned,
-  );
-  expect(await vault.erc721Locked(ownerAccount, nftAddress, tokenId), "NFT locked flag").to.equal(
-    expectedLocked,
-  );
+
+  expect(
+    await vault.erc721Owned(ownerAccount, nftAddress, tokenId),
+    "NFT owned flag",
+  ).to.equal(expectedOwned);
+
+  expect(
+    await vault.erc721Locked(ownerAccount, nftAddress, tokenId),
+    "NFT locked flag",
+  ).to.equal(expectedLocked);
 }
 
 async function expectNftCustodyOwner(nft: any, vault: any, tokenId: bigint) {
@@ -153,14 +206,17 @@ async function expectQuoteCustody(
   accounts: string[],
 ) {
   const quoteAddress = await quoteToken.getAddress();
+
   let internal = await vault.treasuryBalances(quoteAddress);
+
   for (const account of accounts) {
     internal += await vault.erc20Balances(account, quoteAddress);
   }
 
-  expect(await quoteToken.balanceOf(await vault.getAddress()), "quote custody").to.equal(
-    internal,
-  );
+  expect(
+    await quoteToken.balanceOf(await vault.getAddress()),
+    "quote custody",
+  ).to.equal(internal);
 }
 
 describe("NFT spot orderbook lifecycle integration", function () {
@@ -173,17 +229,30 @@ describe("NFT spot orderbook lifecycle integration", function () {
     const quoteToken = await assets.tokenB.getAddress();
 
     await expectRevert(
-      contracts.nftSpotOrderBook.connect(actors.attacker).setOrderLimits(1n, 1n),
+      contracts.nftSpotOrderBook
+        .connect(actors.attacker)
+        .setOrderLimits(1n, 1n),
     );
 
     await expectRevert(
       contracts.nftSpotOrderBook
         .connect(actors.attacker)
-        .placeOrder(ETH, nft, 1n, quoteToken, ASK, ethers.parseEther("10"), 0),
+        .placeOrder(
+          ETH,
+          nft,
+          1n,
+          quoteToken,
+          ASK,
+          ethers.parseEther("10"),
+          0,
+          ethers.ZeroAddress,
+        ),
     );
 
     await expectRevert(
-      contracts.nftSpotOrderBook.connect(actors.attacker).acceptOrder(1n, ETH),
+      contracts.nftSpotOrderBook
+        .connect(actors.attacker)
+        .acceptOrder(1n, ETH, ethers.ZeroAddress),
     );
 
     await expectRevert(
@@ -213,6 +282,7 @@ describe("NFT spot orderbook lifecycle integration", function () {
       contracts.accountRegistry,
       actors.alice,
     );
+
     const bobAccount = await createNormalAccount(
       ethers,
       contracts.accountFactory,
@@ -239,17 +309,32 @@ describe("NFT spot orderbook lifecycle integration", function () {
     const bobQuoteDeposit = addIfToken(price, takerFee, quoteToken);
     const bobEthDeposit = addIfToken(0n, takerFee, ETH);
 
-    const treasuryQuoteBefore = await contracts.vault.treasuryBalances(quoteToken);
+    const treasuryQuoteBefore =
+      await contracts.vault.treasuryBalances(quoteToken);
     const treasuryEthBefore = await contracts.vault.treasuryEthBalance();
 
     await depositNftToAccount(assets.nft, aliceAccount, actors.alice, tokenId);
-    await depositTokenToAccount(assets.tokenB, bobAccount, actors.bob, bobQuoteDeposit);
+    await depositTokenToAccount(
+      assets.tokenB,
+      bobAccount,
+      actors.bob,
+      bobQuoteDeposit,
+    );
     await depositEthToAccount(bobAccount, actors.bob, bobEthDeposit);
 
-    await expectNftVaultState(contracts.vault, assets.nft, aliceAccountAddress, tokenId, true, false);
+    await expectNftVaultState(
+      contracts.vault,
+      assets.nft,
+      aliceAccountAddress,
+      tokenId,
+      true,
+      false,
+    );
+
     await expectNftCustodyOwner(assets.nft, contracts.vault, tokenId);
 
     const nextOrderIdBefore = await contracts.nftSpotOrderBook.nextOrderId();
+
     await (
       await aliceAccount
         .connect(actors.alice)
@@ -262,34 +347,69 @@ describe("NFT spot orderbook lifecycle integration", function () {
           ASK,
           price,
           0,
+          ethers.ZeroAddress,
         )
     ).wait();
 
     const makerOrderId = nextOrderIdBefore;
     const order = await contracts.nftSpotOrderBook.getOrder(makerOrderId);
+
     expect(order.user).to.equal(aliceAccountAddress);
     expect(order.nft).to.equal(nft);
     expect(order.tokenId).to.equal(tokenId);
     expect(order.price).to.equal(price);
     expect(order.side).to.equal(ASK);
 
-    await expectNftVaultState(contracts.vault, assets.nft, aliceAccountAddress, tokenId, true, true);
+    await expectNftVaultState(
+      contracts.vault,
+      assets.nft,
+      aliceAccountAddress,
+      tokenId,
+      true,
+      true,
+    );
 
     await (
       await bobAccount
         .connect(actors.bob)
-        .acceptOrderNFTSpot(await contracts.nftSpotOrderBook.getAddress(), makerOrderId, ETH)
+        .acceptOrderNFTSpot(
+          await contracts.nftSpotOrderBook.getAddress(),
+          makerOrderId,
+          ETH,
+          ethers.ZeroAddress,
+        )
     ).wait();
 
     const removed = await contracts.nftSpotOrderBook.getOrder(makerOrderId);
     expect(removed.user).to.equal(ethers.ZeroAddress);
 
-    const [bids, asks] = await contracts.nftSpotOrderBook.getOrderBook(nft, tokenId, quoteToken);
+    const [bids, asks] = await contracts.nftSpotOrderBook.getOrderBook(
+      nft,
+      tokenId,
+      quoteToken,
+    );
+
     expect(bids.length).to.equal(0);
     expect(asks.length).to.equal(0);
 
-    await expectNftVaultState(contracts.vault, assets.nft, aliceAccountAddress, tokenId, false, false);
-    await expectNftVaultState(contracts.vault, assets.nft, bobAccountAddress, tokenId, true, false);
+    await expectNftVaultState(
+      contracts.vault,
+      assets.nft,
+      aliceAccountAddress,
+      tokenId,
+      false,
+      false,
+    );
+
+    await expectNftVaultState(
+      contracts.vault,
+      assets.nft,
+      bobAccountAddress,
+      tokenId,
+      true,
+      false,
+    );
+
     await expectNftCustodyOwner(assets.nft, contracts.vault, tokenId);
 
     await expectQuoteState(contracts.vault, aliceAccountAddress, quoteToken, {
@@ -298,6 +418,7 @@ describe("NFT spot orderbook lifecycle integration", function () {
       quoteLocked: 0n,
       ethLocked: 0n,
     });
+
     await expectQuoteState(contracts.vault, bobAccountAddress, quoteToken, {
       quote: 0n,
       eth: 0n,
@@ -308,6 +429,7 @@ describe("NFT spot orderbook lifecycle integration", function () {
     expect(await contracts.vault.treasuryBalances(quoteToken)).to.equal(
       treasuryQuoteBefore + feeAmountForToken(takerFee, quoteToken),
     );
+
     expect(await contracts.vault.treasuryEthBalance()).to.equal(
       treasuryEthBefore + feeAmountForToken(takerFee, ETH),
     );
@@ -334,6 +456,7 @@ describe("NFT spot orderbook lifecycle integration", function () {
       contracts.accountRegistry,
       actors.alice,
     );
+
     const bobAccount = await createNormalAccount(
       ethers,
       contracts.accountFactory,
@@ -348,6 +471,15 @@ describe("NFT spot orderbook lifecycle integration", function () {
     const tokenId = 1n;
     const price = ethers.parseEther("12");
 
+    const temporaryBidTakerFee = await getFee(
+      contracts.feeManager,
+      ETH,
+      quoteToken,
+      price,
+      bobAccountAddress,
+      false,
+    );
+
     const makerFee = await getFee(
       contracts.feeManager,
       ETH,
@@ -357,14 +489,30 @@ describe("NFT spot orderbook lifecycle integration", function () {
       true,
     );
 
-    const bobQuoteDeposit = addIfToken(price, makerFee, quoteToken);
-    const bobEthDeposit = addIfToken(0n, makerFee, ETH);
+    const bobQuoteDeposit =
+      price + maxFeeAmountForToken(temporaryBidTakerFee, makerFee, quoteToken);
+
+    const bobEthDeposit = maxFeeAmountForToken(
+      temporaryBidTakerFee,
+      makerFee,
+      ETH,
+    );
+
+    const treasuryQuoteBefore =
+      await contracts.vault.treasuryBalances(quoteToken);
+    const treasuryEthBefore = await contracts.vault.treasuryEthBalance();
 
     await depositNftToAccount(assets.nft, aliceAccount, actors.alice, tokenId);
-    await depositTokenToAccount(assets.tokenB, bobAccount, actors.bob, bobQuoteDeposit);
+    await depositTokenToAccount(
+      assets.tokenB,
+      bobAccount,
+      actors.bob,
+      bobQuoteDeposit,
+    );
     await depositEthToAccount(bobAccount, actors.bob, bobEthDeposit);
 
     const nextOrderIdBefore = await contracts.nftSpotOrderBook.nextOrderId();
+
     await (
       await bobAccount
         .connect(actors.bob)
@@ -377,11 +525,13 @@ describe("NFT spot orderbook lifecycle integration", function () {
           BID,
           price,
           0,
+          ethers.ZeroAddress,
         )
     ).wait();
 
     const bidOrderId = nextOrderIdBefore;
     const bid = await contracts.nftSpotOrderBook.getOrder(bidOrderId);
+
     expect(bid.user).to.equal(bobAccountAddress);
     expect(bid.fixedFeeAmount).to.equal(makerFee.fixedAmount);
     expect(bid.percentageFeeAmount).to.equal(makerFee.percentageAmount);
@@ -396,14 +546,34 @@ describe("NFT spot orderbook lifecycle integration", function () {
     await (
       await aliceAccount
         .connect(actors.alice)
-        .acceptOrderNFTSpot(await contracts.nftSpotOrderBook.getAddress(), bidOrderId, ETH)
+        .acceptOrderNFTSpot(
+          await contracts.nftSpotOrderBook.getAddress(),
+          bidOrderId,
+          ETH,
+          ethers.ZeroAddress,
+        )
     ).wait();
 
     const removed = await contracts.nftSpotOrderBook.getOrder(bidOrderId);
     expect(removed.user).to.equal(ethers.ZeroAddress);
 
-    await expectNftVaultState(contracts.vault, assets.nft, aliceAccountAddress, tokenId, false, false);
-    await expectNftVaultState(contracts.vault, assets.nft, bobAccountAddress, tokenId, true, false);
+    await expectNftVaultState(
+      contracts.vault,
+      assets.nft,
+      aliceAccountAddress,
+      tokenId,
+      false,
+      false,
+    );
+
+    await expectNftVaultState(
+      contracts.vault,
+      assets.nft,
+      bobAccountAddress,
+      tokenId,
+      true,
+      false,
+    );
 
     await expectQuoteState(contracts.vault, aliceAccountAddress, quoteToken, {
       quote: price,
@@ -411,12 +581,21 @@ describe("NFT spot orderbook lifecycle integration", function () {
       quoteLocked: 0n,
       ethLocked: 0n,
     });
+
     await expectQuoteState(contracts.vault, bobAccountAddress, quoteToken, {
-      quote: 0n,
-      eth: 0n,
+      quote: bobQuoteDeposit - price - feeAmountForToken(makerFee, quoteToken),
+      eth: bobEthDeposit - feeAmountForToken(makerFee, ETH),
       quoteLocked: 0n,
       ethLocked: 0n,
     });
+
+    expect(await contracts.vault.treasuryBalances(quoteToken)).to.equal(
+      treasuryQuoteBefore + feeAmountForToken(makerFee, quoteToken),
+    );
+
+    expect(await contracts.vault.treasuryEthBalance()).to.equal(
+      treasuryEthBefore + feeAmountForToken(makerFee, ETH),
+    );
 
     await expectQuoteCustody(contracts.vault, assets.tokenB, [
       aliceAccountAddress,
@@ -447,6 +626,7 @@ describe("NFT spot orderbook lifecycle integration", function () {
     await depositNftToAccount(assets.nft, aliceAccount, actors.alice, tokenId);
 
     const nextOrderIdBefore = await contracts.nftSpotOrderBook.nextOrderId();
+
     await (
       await aliceAccount
         .connect(actors.alice)
@@ -459,27 +639,51 @@ describe("NFT spot orderbook lifecycle integration", function () {
           ASK,
           price,
           0,
+          ethers.ZeroAddress,
         )
     ).wait();
 
     const orderId = nextOrderIdBefore;
-    await expectNftVaultState(contracts.vault, assets.nft, aliceAccountAddress, tokenId, true, true);
+
+    await expectNftVaultState(
+      contracts.vault,
+      assets.nft,
+      aliceAccountAddress,
+      tokenId,
+      true,
+      true,
+    );
 
     await (
       await aliceAccount
         .connect(actors.alice)
-        .cancelOrderNFTSpot(await contracts.nftSpotOrderBook.getAddress(), orderId)
+        .cancelOrderNFTSpot(
+          await contracts.nftSpotOrderBook.getAddress(),
+          orderId,
+        )
     ).wait();
 
     const removed = await contracts.nftSpotOrderBook.getOrder(orderId);
     expect(removed.user).to.equal(ethers.ZeroAddress);
-    await expectNftVaultState(contracts.vault, assets.nft, aliceAccountAddress, tokenId, true, false);
+
+    await expectNftVaultState(
+      contracts.vault,
+      assets.nft,
+      aliceAccountAddress,
+      tokenId,
+      true,
+      false,
+    );
+
     await expectNftCustodyOwner(assets.nft, contracts.vault, tokenId);
 
     await expectRevert(
       aliceAccount
         .connect(actors.alice)
-        .cancelOrderNFTSpot(await contracts.nftSpotOrderBook.getAddress(), orderId),
+        .cancelOrderNFTSpot(
+          await contracts.nftSpotOrderBook.getAddress(),
+          orderId,
+        ),
     );
   });
 
@@ -503,6 +707,15 @@ describe("NFT spot orderbook lifecycle integration", function () {
     const tokenId = 1n;
     const price = ethers.parseEther("9");
 
+    const temporaryBidTakerFee = await getFee(
+      contracts.feeManager,
+      ETH,
+      quoteToken,
+      price,
+      bobAccountAddress,
+      false,
+    );
+
     const makerFee = await getFee(
       contracts.feeManager,
       ETH,
@@ -512,16 +725,28 @@ describe("NFT spot orderbook lifecycle integration", function () {
       true,
     );
 
-    const bobQuoteDeposit = addIfToken(price, makerFee, quoteToken);
-    const bobEthDeposit = addIfToken(0n, makerFee, ETH);
+    const bobQuoteDeposit =
+      price + maxFeeAmountForToken(temporaryBidTakerFee, makerFee, quoteToken);
 
-    await depositTokenToAccount(assets.tokenB, bobAccount, actors.bob, bobQuoteDeposit);
+    const bobEthDeposit = maxFeeAmountForToken(
+      temporaryBidTakerFee,
+      makerFee,
+      ETH,
+    );
+
+    await depositTokenToAccount(
+      assets.tokenB,
+      bobAccount,
+      actors.bob,
+      bobQuoteDeposit,
+    );
     await depositEthToAccount(bobAccount, actors.bob, bobEthDeposit);
 
     const latest = await ethers.provider.getBlock("latest");
     const expiry = BigInt(latest!.timestamp + 5);
 
     const nextOrderIdBefore = await contracts.nftSpotOrderBook.nextOrderId();
+
     await (
       await bobAccount
         .connect(actors.bob)
@@ -534,6 +759,7 @@ describe("NFT spot orderbook lifecycle integration", function () {
           BID,
           price,
           expiry,
+          ethers.ZeroAddress,
         )
     ).wait();
 
@@ -552,10 +778,16 @@ describe("NFT spot orderbook lifecycle integration", function () {
     await expectRevert(
       bobAccount
         .connect(actors.bob)
-        .acceptOrderNFTSpot(await contracts.nftSpotOrderBook.getAddress(), orderId, ETH),
+        .acceptOrderNFTSpot(
+          await contracts.nftSpotOrderBook.getAddress(),
+          orderId,
+          ETH,
+          ethers.ZeroAddress,
+        ),
     );
 
     const timelock = await impersonateTimelock(ethers, addresses.sethxTimelock);
+
     await (
       await contracts.nftSpotOrderBook
         .connect(timelock)

@@ -9,6 +9,16 @@ import {
 
 const { ethers } = await network.create();
 
+async function expectRevert(promise: Promise<unknown>) {
+  try {
+    await promise;
+  } catch {
+    return;
+  }
+
+  throw new Error("Expected transaction to revert");
+}
+
 function asBigInt(value: unknown): bigint {
   if (typeof value === "bigint") return value;
   if (typeof value === "number") return BigInt(value);
@@ -26,13 +36,32 @@ function asBigInt(value: unknown): bigint {
   throw new Error(`Cannot convert value to bigint: ${String(value)}`);
 }
 
+async function latestBlockTimestamp() {
+  const block = await ethers.provider.getBlock("latest");
+  if (!block) throw new Error("Latest block not found");
+  return BigInt(block.timestamp);
+}
+
+async function mineToTimestamp(timestamp: bigint) {
+  const latest = await latestBlockTimestamp();
+  if (latest >= timestamp) return;
+
+  await ethers.provider.send("evm_setNextBlockTimestamp", [
+    `0x${timestamp.toString(16)}`,
+  ]);
+  await ethers.provider.send("evm_mine", []);
+}
+
 describe("Final initialization parameter verification", function () {
   async function loadDeployment() {
     const deployment = readLocalDeployment();
 
+    const founderTokenTimelockConfigs =
+      deployment.addresses.founderTokenTimelocks ?? [];
+
     const addresses = {
       sethxToken: requireLocalAddress(deployment, "sethxToken"),
-      founderTokenTimelock: requireLocalAddress(deployment, "founderTokenTimelock"),
+      founderTokenTimelocks: founderTokenTimelockConfigs,
       protocolTreasury: requireLocalAddress(deployment, "protocolTreasury"),
       sethxTimelock: requireLocalAddress(deployment, "sethxTimelock"),
       sethxGovernor: requireLocalAddress(deployment, "sethxGovernor"),
@@ -53,10 +82,14 @@ describe("Final initialization parameter verification", function () {
       ),
     };
 
-    const sethxToken = await ethers.getContractAt("SethxToken", addresses.sethxToken);
-    const founderTokenTimelock = await ethers.getContractAt(
-      "FounderTokenTimelock",
-      addresses.founderTokenTimelock,
+    const sethxToken = await ethers.getContractAt(
+      "SethxToken",
+      addresses.sethxToken,
+    );
+    const founderTokenTimelocks = await Promise.all(
+      addresses.founderTokenTimelocks.map((lock) =>
+        ethers.getContractAt("FounderTokenTimelock", lock.address),
+      ),
     );
     const sethxTimelock = await ethers.getContractAt(
       "SethxTimelock",
@@ -70,7 +103,10 @@ describe("Final initialization parameter verification", function () {
       "PriceManager",
       addresses.priceManager,
     );
-    const feeManager = await ethers.getContractAt("FeeManager", addresses.feeManager);
+    const feeManager = await ethers.getContractAt(
+      "FeeManager",
+      addresses.feeManager,
+    );
     const valuationModule = await ethers.getContractAt(
       "ValuationModule",
       addresses.valuationModule,
@@ -96,7 +132,7 @@ describe("Final initialization parameter verification", function () {
       deployment,
       addresses,
       sethxToken,
-      founderTokenTimelock,
+      founderTokenTimelocks: founderTokenTimelockConfigs,
       sethxTimelock,
       sethxGovernor,
       priceManager,
@@ -110,7 +146,8 @@ describe("Final initialization parameter verification", function () {
   }
 
   it("records token distribution from parameters", async function () {
-    const { deployment, sethxToken, founderTokenTimelock } = await loadDeployment();
+    const { deployment, sethxToken, founderTokenTimelocks } =
+      await loadDeployment();
     const params = INITIAL_PROTOCOL_PARAMETERS.token;
 
     expect(await sethxToken.name()).to.equal(params.name);
@@ -118,27 +155,82 @@ describe("Final initialization parameter verification", function () {
     expect(await sethxToken.decimals()).to.equal(params.decimals);
     expect(await sethxToken.totalSupply()).to.equal(params.totalSupply);
 
+    const founderTimelockConfigs = params.founderTimelocks ?? [];
+    const expectedFounderAllocation = founderTimelockConfigs.reduce(
+      (sum: bigint, lock: { allocationBps: bigint }) =>
+        sum + (params.totalSupply * lock.allocationBps) / 10_000n,
+      0n,
+    );
+
     expect(BigInt(deployment.tokenDistribution.totalSupply)).to.equal(
       params.totalSupply,
     );
     expect(BigInt(deployment.tokenDistribution.founderAmount)).to.equal(
-      params.founderAllocation,
+      params.founderAllocation ?? expectedFounderAllocation,
     );
+    expect(
+      BigInt(
+        deployment.tokenDistribution.founderTimelockTotal ??
+          deployment.tokenDistribution.founderAmount,
+      ),
+    ).to.equal(expectedFounderAllocation);
     expect(BigInt(deployment.tokenDistribution.treasuryAmount)).to.equal(
       params.treasuryAllocation,
     );
-    expect(params.founderAllocation + params.treasuryAllocation).to.equal(
+    expect(expectedFounderAllocation + params.treasuryAllocation).to.equal(
       params.totalSupply,
     );
 
-    expect(await founderTokenTimelock.beneficiary()).to.equal(
-      deployment.founderAddress,
-    );
-    expect(await founderTokenTimelock.releaseTime()).to.equal(
-      BigInt(deployment.founderReleaseTime),
-    );
+    expect(deployment.addresses.founderTokenTimelocks).to.have.length(6);
+    expect(founderTokenTimelocks).to.have.length(6);
+
+    for (const [index, lock] of founderTokenTimelocks.entries()) {
+      const config = deployment.addresses.founderTokenTimelocks![index];
+      const founderLock = lock as any;
+      expect(founderLock.beneficiary).to.equal(config.beneficiary);
+      expect(BigInt(founderLock.releaseTime)).to.equal(
+        BigInt(config.releaseTime),
+      );
+      expect(await sethxToken.balanceOf(config.address)).to.equal(
+        BigInt(config.allocation),
+      );
+    }
   });
 
+  it("keeps founder timelocks locked before release and releases after delay", async function () {
+    const { deployment, sethxToken, founderTokenTimelocks } =
+      await loadDeployment();
+
+    const founderTimelocks = deployment.addresses?.founderTokenTimelocks ?? [];
+    expect(founderTimelocks).to.have.length(6);
+
+    const firstLock = founderTimelocks[0];
+
+    const founderLock = await ethers.getContractAt(
+      "FounderTokenTimelock",
+      firstLock.address,
+    );
+
+    const beneficiary = firstLock.beneficiary;
+    const allocation = BigInt(firstLock.allocation);
+
+    expect(await sethxToken.balanceOf(firstLock.address)).to.equal(allocation);
+
+    await expect(founderLock.release()).to.be.revert(ethers);
+
+    await mineToTimestamp(BigInt(firstLock.releaseTime) + 1n);
+
+    const before = await sethxToken.balanceOf(beneficiary);
+
+    await founderLock.release();
+
+    expect(await sethxToken.balanceOf(beneficiary)).to.equal(
+      before + allocation,
+    );
+    expect(await sethxToken.balanceOf(firstLock.address)).to.equal(0n);
+
+    await expect(founderLock.release()).to.be.revert(ethers);
+  });
   it("initializes governance parameters from parameters", async function () {
     const { deployment, sethxTimelock, sethxGovernor } = await loadDeployment();
     const params = INITIAL_PROTOCOL_PARAMETERS.governance;
@@ -146,8 +238,12 @@ describe("Final initialization parameter verification", function () {
     expect(await sethxTimelock.getMinDelay()).to.equal(
       params.timelockDelaySeconds,
     );
-    expect(await sethxGovernor.votingDelay()).to.equal(params.votingDelayBlocks);
-    expect(await sethxGovernor.votingPeriod()).to.equal(params.votingPeriodBlocks);
+    expect(await sethxGovernor.votingDelay()).to.equal(
+      params.votingDelayBlocks,
+    );
+    expect(await sethxGovernor.votingPeriod()).to.equal(
+      params.votingPeriodBlocks,
+    );
     expect(await sethxGovernor.proposalThreshold()).to.equal(
       params.proposalThreshold,
     );
@@ -170,15 +266,53 @@ describe("Final initialization parameter verification", function () {
     expect(await feeManager.feeUpdateDelay()).to.equal(
       BigInt(feeParams.feeUpdateDelaySeconds),
     );
+
     expect(await feeManager.isAcceptedFeeToken(ethers.ZeroAddress)).to.equal(
       feeParams.acceptEthFees,
     );
+
     expect(await feeManager.isAcceptedFeeToken(addresses.sethxToken)).to.equal(
       feeParams.acceptSethxFees,
     );
-    expect(await feeManager.sethxDiscountBps()).to.equal(
+
+    // Delayed discount should be queued, not active.
+    expect(await feeManager.sethxDiscountBps()).to.equal(0n);
+
+    const pendingDiscount = await feeManager.pendingSethxDiscountUpdate();
+
+    expect(pendingDiscount.discountBps).to.equal(
       BigInt(feeParams.sethxDiscountBps),
     );
+    expect(pendingDiscount.executeAfter).to.be.gt(0n);
+
+    for (const feeContext of feeParams.contexts) {
+      // Active role fee config should still be empty until the delay has passed
+      // and executeRoleFeeUpdate(context) is called.
+      const active = await feeManager.getRoleFeeConfig(feeContext.context);
+
+      expect(active.makerFixedFee).to.equal(0n);
+      expect(active.makerPercentageFee).to.equal(0n);
+      expect(active.takerFixedFee).to.equal(0n);
+      expect(active.takerPercentageFee).to.equal(0n);
+      expect(active.configured).to.equal(false);
+
+      // The intended values should be queued.
+      const pending = await feeManager.pendingRoleUpdates(feeContext.context);
+
+      expect(pending.makerFixedFee).to.equal(
+        BigInt(feeContext.makerFixedFeeEth),
+      );
+      expect(pending.makerPercentageFee).to.equal(
+        BigInt(feeContext.makerPercentageFeeBps),
+      );
+      expect(pending.takerFixedFee).to.equal(
+        BigInt(feeContext.takerFixedFeeEth),
+      );
+      expect(pending.takerPercentageFee).to.equal(
+        BigInt(feeContext.takerPercentageFeeBps),
+      );
+      expect(pending.executeAfter).to.be.gt(0n);
+    }
   });
 
   it("queues FeeManager role-fee contexts from parameters", async function () {
@@ -217,7 +351,9 @@ describe("Final initialization parameter verification", function () {
 
       expect(onchain.enabled).to.equal(tier.enabled);
       expect(onchain.maxLtvBps).to.equal(BigInt(tier.maxLtvBps));
-      expect(onchain.liquidationLtvBps).to.equal(BigInt(tier.liquidationLtvBps));
+      expect(onchain.liquidationLtvBps).to.equal(
+        BigInt(tier.liquidationLtvBps),
+      );
       expect(onchain.longOptionHaircutBps).to.equal(
         BigInt(tier.longOptionHaircutBps),
       );
@@ -230,7 +366,8 @@ describe("Final initialization parameter verification", function () {
       );
     }
 
-    for (const level of INITIAL_PROTOCOL_PARAMETERS.lendingRisk.lendingRiskLevels) {
+    for (const level of INITIAL_PROTOCOL_PARAMETERS.lendingRisk
+      .lendingRiskLevels) {
       const onchain = await lendingContract.riskLevels(level.riskLevel);
 
       expect(onchain.enabled).to.equal(level.enabled);
@@ -281,7 +418,8 @@ describe("Final initialization parameter verification", function () {
   });
 
   it("authorizes passive futures publisher and pool factory", async function () {
-    const { addresses, futuresOrderBook, accountRegistry } = await loadDeployment();
+    const { addresses, futuresOrderBook, accountRegistry } =
+      await loadDeployment();
 
     const publisherRole = await futuresOrderBook.PASSIVE_MM_PUBLISHER_ROLE();
     const adminRole = await futuresOrderBook.ADMIN_ROLE();
@@ -302,7 +440,10 @@ describe("Final initialization parameter verification", function () {
     ).to.equal(true);
 
     expect(
-      await accountRegistry.hasRole(factoryRole, addresses.passiveFuturesPoolFactory),
+      await accountRegistry.hasRole(
+        factoryRole,
+        addresses.passiveFuturesPoolFactory,
+      ),
     ).to.equal(true);
   });
 });

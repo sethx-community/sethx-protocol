@@ -1,3 +1,5 @@
+import { safeDeployContract } from "./safe-deploy-contract.js";
+
 export async function deployBinaryMarginOptionContract(
   ethers: any,
   deployment: {
@@ -10,7 +12,7 @@ export async function deployBinaryMarginOptionContract(
   const [deployer] = await ethers.getSigners();
   const deployerAddress = await deployer.getAddress();
 
-  const binaryMarginOptionContract = await ethers.deployContract(
+  const binaryMarginOptionContract = await safeDeployContract(ethers, 
     "BinaryMarginOptionContract",
     [
       deployment.addresses.sethxVault,
@@ -18,8 +20,6 @@ export async function deployBinaryMarginOptionContract(
       deployerAddress,
     ],
   );
-
-  await binaryMarginOptionContract.waitForDeployment();
 
   return {
     binaryMarginOptionContract,

@@ -74,12 +74,12 @@ describe("Gas and performance threshold integration", function () {
         ONE,
         25n * ONE,
         await freshOrderExpiry(),
-      );
+       ethers.ZeroAddress);
     await expectGasBelow("token spot place order", (await placeTx.wait())!.gasUsed, 4_000_000n);
 
     const acceptTx = await taker
       .connect(actors.bob)
-      .acceptOrderTokenSpot(await contracts.tokenSpotOrderBook.getAddress(), orderId, 25n * ONE, ETH);
+      .acceptOrderTokenSpot(await contracts.tokenSpotOrderBook.getAddress(), orderId, 25n * ONE, ETH, ethers.ZeroAddress);
     await expectGasBelow("token spot full fill", (await acceptTx.wait())!.gasUsed, 7_500_000n);
 
     for (const account of [makerAddress, takerAddress]) {

@@ -212,6 +212,7 @@ export async function setupTreasuryModules(
       treasuryPaymentsModule: string;
       treasuryVaultModule: string;
       treasuryTradeModule: string;
+      treasuryFuturesMaintenanceModule: string;
       sethxToken?: string;
     };
   },
@@ -288,6 +289,18 @@ export async function setupTreasuryModules(
   await setApprovedTreasuryModuleIfNeeded(
     protocolTreasury,
     deployment.addresses.treasuryTradeModule,
+    true,
+  );
+
+  await setApprovedTreasuryModuleIfNeeded(
+    protocolTreasury,
+    deployment.addresses.treasuryFuturesMaintenanceModule,
+    true,
+  );
+
+  await setApprovedExternalRecipientIfNeeded(
+    protocolTreasury,
+    initialTreasurer,
     true,
   );
 
@@ -385,6 +398,14 @@ export async function setupTreasuryModules(
         await protocolTreasury.approvedTreasuryModules(
           deployment.addresses.treasuryTradeModule,
         ),
+
+      treasuryFuturesMaintenanceModuleApproved:
+        await protocolTreasury.approvedTreasuryModules(
+          deployment.addresses.treasuryFuturesMaintenanceModule,
+        ),
+
+      initialTreasurerApprovedExternalRecipient:
+        await protocolTreasury.approvedExternalRecipients(initialTreasurer),
 
       treasuryTradeModuleApprovedInternalReceiver:
         await protocolTreasury.approvedInternalReceivers(

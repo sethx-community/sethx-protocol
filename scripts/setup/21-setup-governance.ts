@@ -1,3 +1,15 @@
+async function grantRoleIfMissing(
+  contract: any,
+  role: string,
+  account: string,
+) {
+  if (await contract.hasRole(role, account)) return false;
+
+  const tx = await contract.grantRole(role, account);
+  await tx.wait();
+  return true;
+}
+
 export async function setupGovernance(
   ethers: any,
   deployment: {
@@ -19,17 +31,19 @@ export async function setupGovernance(
 
   const openExecutor = ethers.ZeroAddress;
 
-  await sethxTimelock.grantRole(
+  await grantRoleIfMissing(
+    sethxTimelock,
     proposerRole,
     deployment.addresses.sethxGovernor,
   );
 
-  await sethxTimelock.grantRole(
+  await grantRoleIfMissing(
+    sethxTimelock,
     cancellerRole,
     deployment.addresses.sethxGovernor,
   );
 
-  await sethxTimelock.grantRole(executorRole, openExecutor);
+  await grantRoleIfMissing(sethxTimelock, executorRole, openExecutor);
 
   return {
     roles: {

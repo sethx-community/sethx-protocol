@@ -1,3 +1,5 @@
+import { safeDeployContract } from "./safe-deploy-contract.js";
+
 export async function deployRiskModule(
   ethers: any,
   deployment: {
@@ -9,12 +11,10 @@ export async function deployRiskModule(
   const [deployer] = await ethers.getSigners();
   const deployerAddress = await deployer.getAddress();
 
-  const riskModule = await ethers.deployContract("RiskModule", [
+  const riskModule = await safeDeployContract(ethers, "RiskModule", [
     deployment.addresses.valuationModule,
     deployerAddress,
   ]);
-
-  await riskModule.waitForDeployment();
 
   return {
     riskModule,

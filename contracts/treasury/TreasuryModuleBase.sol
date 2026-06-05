@@ -33,6 +33,11 @@ abstract contract TreasuryModuleBase {
         _;
     }
 
+    modifier onlyPassiveQuotePublisher() {
+        authority.requireTreasurerPermission(msg.sender, authority.PERMISSION_PUBLISH_PASSIVE_QUOTES());
+        _;
+    }
+
     modifier onlyPaymentsTreasurer() {
         authority.requireTreasurerPermission(msg.sender, authority.PERMISSION_MANAGE_PAYMENTS());
         _;

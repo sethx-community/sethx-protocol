@@ -204,7 +204,6 @@ async function getFee(
 }
 
 async function createMarginMarket(contracts: any, governance: any) {
-  const now = await latestTimestamp();
   const expiry = await nextOptionExpiry(2, 30n);
   const oracle = await deployMockOracle("MARGIN/ETH", 8, 2n * 10n ** 8n);
   const oracleAddress = await registerOptionSettlementOracle(
@@ -212,7 +211,7 @@ async function createMarginMarket(contracts: any, governance: any) {
     governance,
     ETH,
     oracle,
-    `MARGIN/ETH ${now}`,
+    "MARGIN/ETH",
   );
 
   const strikeRaw = 2n * 10n ** 8n;
@@ -222,7 +221,6 @@ async function createMarginMarket(contracts: any, governance: any) {
     await contracts.marginOptionContract
       .connect(governance)
       .createMarket(
-        `MARGIN-${now}`,
         MarginOptionType.Call,
         oracleAddress,
         strikeRaw,
@@ -233,12 +231,13 @@ async function createMarginMarket(contracts: any, governance: any) {
 
   const count = await contracts.marginOptionContract.marketCount();
   const marketKey = await contracts.marginOptionContract.marketKeyAt(count - 1n);
+  const market = await contracts.marginOptionContract.markets(marketKey);
+  expect(market.ticker).to.equal("MARGIN/ETH");
 
   return { marketKey, oracle, oracleAddress, expiry, strikeRaw };
 }
 
 async function createBinaryMarket(contracts: any, governance: any) {
-  const now = await latestTimestamp();
   const expiry = await nextOptionExpiry(3, 45n);
   const oracle = await deployMockOracle("BINARY/ETH", 8, 2n * 10n ** 8n);
   const oracleAddress = await registerOptionSettlementOracle(
@@ -246,7 +245,7 @@ async function createBinaryMarket(contracts: any, governance: any) {
     governance,
     ETH,
     oracle,
-    `BINARY/ETH ${now}`,
+    "BINARY/ETH",
   );
 
   const strikeRaw = 2n * 10n ** 8n;
@@ -254,7 +253,6 @@ async function createBinaryMarket(contracts: any, governance: any) {
     await contracts.binaryMarginOptionContract
       .connect(governance)
       .createMarket(
-        `BINARY-${now}`,
         MarginOptionType.Call,
         oracleAddress,
         strikeRaw,
@@ -264,6 +262,8 @@ async function createBinaryMarket(contracts: any, governance: any) {
 
   const count = await contracts.binaryMarginOptionContract.marketCount();
   const marketKey = await contracts.binaryMarginOptionContract.marketKeyAt(count - 1n);
+  const market = await contracts.binaryMarginOptionContract.markets(marketKey);
+  expect(market.ticker).to.equal("BINARY/ETH");
 
   return { marketKey, oracle, oracleAddress, expiry, strikeRaw };
 }
@@ -281,10 +281,10 @@ describe("Margin and binary margin options lifecycle integration", function () {
     await expectRevert(
       contracts.marginOptionsOrderBook
         .connect(attacker)
-        .placeOrder(zeroKey, MarginIntent.BuyOption, ONE, ONE / 10n, 0n, ETH),
+        .placeOrder(zeroKey, MarginIntent.BuyOption, ONE, ONE / 10n, 0n, ETH, ethers.ZeroAddress),
     );
     await expectRevert(
-      contracts.marginOptionsOrderBook.connect(attacker).acceptOrder(1n, ONE, ETH),
+      contracts.marginOptionsOrderBook.connect(attacker).acceptOrder(1n, ONE, ETH, ethers.ZeroAddress),
     );
     await expectRevert(
       contracts.marginOptionsOrderBook.connect(attacker).cancelOrder(1n),
@@ -320,10 +320,10 @@ describe("Margin and binary margin options lifecycle integration", function () {
     await expectRevert(
       contracts.binaryMarginOptionsOrderBook
         .connect(attacker)
-        .placeOrder(zeroKey, BinaryIntent.BuyOption, ONE, ONE / 10n, 0n, ETH),
+        .placeOrder(zeroKey, BinaryIntent.BuyOption, ONE, ONE / 10n, 0n, ETH, ethers.ZeroAddress),
     );
     await expectRevert(
-      contracts.binaryMarginOptionsOrderBook.connect(attacker).acceptOrder(1n, ONE, ETH),
+      contracts.binaryMarginOptionsOrderBook.connect(attacker).acceptOrder(1n, ONE, ETH, ethers.ZeroAddress),
     );
     await expectRevert(
       contracts.binaryMarginOptionsOrderBook.connect(attacker).cancelOrder(1n),
@@ -337,6 +337,76 @@ describe("Margin and binary margin options lifecycle integration", function () {
     await expectRevert(
       contracts.binaryMarginOptionContract.connect(attacker).settleMarket(zeroKey),
     );
+  });
+
+  it("allows permissionless margin market creation and derives tickers from oracle metadata", async function () {
+    const { addresses, contracts } = await loadIntegratedDeployment(ethers);
+    const actors = await loadActors(ethers);
+    const governance = await impersonateTimelock(ethers, addresses.sethxTimelock);
+
+    expect(
+      contracts.marginOptionContract.interface
+        .getFunction("createMarket")
+        .inputs.map((input: any) => input.type),
+    ).to.deep.equal(["uint8", "address", "uint256", "uint256", "uint256"]);
+    expect(
+      contracts.binaryMarginOptionContract.interface
+        .getFunction("createMarket")
+        .inputs.map((input: any) => input.type),
+    ).to.deep.equal(["uint8", "address", "uint256", "uint256"]);
+
+    const marginExpiry = await nextOptionExpiry(4, 60n);
+    const marginOracle = await deployMockOracle("PUBLIC-MARGIN/ETH", 8, 2n * 10n ** 8n);
+    const marginOracleAddress = await registerOptionSettlementOracle(
+      contracts,
+      governance,
+      ETH,
+      marginOracle,
+      "Public margin option oracle",
+    );
+
+    await (
+      await contracts.marginOptionContract
+        .connect(actors.attacker)
+        .createMarket(
+          MarginOptionType.Call,
+          marginOracleAddress,
+          2n * 10n ** 8n,
+          marginExpiry,
+          10_000n,
+        )
+    ).wait();
+
+    const marginCount = await contracts.marginOptionContract.marketCount();
+    const marginMarketKey = await contracts.marginOptionContract.marketKeyAt(marginCount - 1n);
+    const marginMarket = await contracts.marginOptionContract.markets(marginMarketKey);
+    expect(marginMarket.ticker).to.equal("PUBLIC-MARGIN/ETH");
+
+    const binaryExpiry = await nextOptionExpiry(5, 75n);
+    const binaryOracle = await deployMockOracle("PUBLIC-BINARY/ETH", 8, 2n * 10n ** 8n);
+    const binaryOracleAddress = await registerOptionSettlementOracle(
+      contracts,
+      governance,
+      ETH,
+      binaryOracle,
+      "Public binary margin option oracle",
+    );
+
+    await (
+      await contracts.binaryMarginOptionContract
+        .connect(actors.attacker)
+        .createMarket(
+          MarginOptionType.Call,
+          binaryOracleAddress,
+          2n * 10n ** 8n,
+          binaryExpiry,
+        )
+    ).wait();
+
+    const binaryCount = await contracts.binaryMarginOptionContract.marketCount();
+    const binaryMarketKey = await contracts.binaryMarginOptionContract.marketKeyAt(binaryCount - 1n);
+    const binaryMarket = await contracts.binaryMarginOptionContract.markets(binaryMarketKey);
+    expect(binaryMarket.ticker).to.equal("PUBLIC-BINARY/ETH");
   });
 
   it("writes, buys, settles, claims, and reclaims a margin call option through Accounts", async function () {
@@ -391,7 +461,7 @@ describe("Margin and binary margin options lifecycle integration", function () {
           askPrice,
           orderExpiry,
           ETH,
-        )
+         ethers.ZeroAddress)
     ).wait();
 
     await (
@@ -402,7 +472,7 @@ describe("Margin and binary margin options lifecycle integration", function () {
           orderId,
           size,
           ETH,
-        )
+         ethers.ZeroAddress)
     ).wait();
 
     expect(await contracts.marginOptionContract.marketOpenInterest(marketKey)).to.equal(size);
@@ -484,7 +554,7 @@ describe("Margin and binary margin options lifecycle integration", function () {
           askPrice,
           orderExpiry,
           ETH,
-        )
+         ethers.ZeroAddress)
     ).wait();
 
     await (
@@ -495,7 +565,7 @@ describe("Margin and binary margin options lifecycle integration", function () {
           orderId,
           payoutAmount,
           ETH,
-        )
+         ethers.ZeroAddress)
     ).wait();
 
     expect(await contracts.binaryMarginOptionContract.marketOpenInterest(marketKey)).to.equal(

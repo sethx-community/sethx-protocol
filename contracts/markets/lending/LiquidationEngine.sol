@@ -103,6 +103,16 @@ contract LiquidationEngine is AccessControl {
     event AuctionCancelled(address indexed account);
     event AuctionExpired(address indexed account, bytes32 indexed marketKey);
 
+    event LiquidationResolvedFromFreeEth(
+        address indexed account,
+        bytes32 indexed marketKey,
+        uint16 indexed riskLevel,
+        uint256 debtBeforeSweep,
+        uint256 freeEthRecovered,
+        uint256 cancelledOrders,
+        address preLiquidationOwner
+    );
+
     constructor(
         address _vault,
         address _accountRegistry,
@@ -170,7 +180,25 @@ contract LiquidationEngine is AccessControl {
 
         uint256 sweptFreeEth = _sweepFreeEthToDebt(account, marketKey, faceValue);
 
-        uint256 remainingDebt = faceValue > sweptFreeEth ? faceValue - sweptFreeEth : 0;
+        uint256 remainingDebt = lendingContract.getDebt(account, marketKey).faceValue;
+
+        if (remainingDebt == 0) {
+            delete auctions[account];
+
+            LendingAccount(payable(account)).clearLiquidation();
+
+            emit LiquidationResolvedFromFreeEth(
+                account,
+                marketKey,
+                riskLevel,
+                faceValue,
+                sweptFreeEth,
+                cancelledOrders,
+                preOwner
+            );
+
+            return;
+        }
 
         uint64 startTime = uint64(block.timestamp);
         uint64 endTime = uint64(
@@ -325,6 +353,11 @@ contract LiquidationEngine is AccessControl {
         if (block.timestamp <= a.endTime) revert AuctionNotExpired();
 
         a.active = false;
+
+        LendingAccount borrower = LendingAccount(payable(account));
+        if (borrower.liquidationActive()) {
+            borrower.clearLiquidation();
+        }
 
         emit AuctionExpired(account, a.marketKey);
     }

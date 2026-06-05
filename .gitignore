@@ -1,10 +1,12 @@
 node_modules/
 artifacts/
 cache/
+test/
 typechain-types/
 types/
 coverage/
 coverage.json
+frontend-seed-report.json
 
 .zip
 .env
@@ -13,6 +15,7 @@ coverage.json
 
 deployments/local/*.json
 deployments/testnet/*.json
-deployments/mainnet/*.json
+
+contracts/test/
 
 ignition/deployments/

@@ -26,6 +26,8 @@ import { LendingOrderBook } from "../markets/lending/LendingOrderBook.sol";
 
 import { RiskModule } from "../markets/lending/RiskModule.sol";
 
+import { FuturesTypes } from "../markets/futures/FuturesTypes.sol";
+
 interface ILiquidationAuctionBuyer {
     function buyAuctionedAccount(address account) external;
 }
@@ -337,7 +339,8 @@ contract LendingAccount {
         TokenSpotOrderBook.Side side,
         uint256 price,
         uint256 amount,
-        uint256 expiry
+        uint256 expiry,
+        address referrer
     ) external onlyOwner whenNotLiquidating {
         bytes memory data = abi.encodeWithSelector(
             TokenSpotOrderBook.placeOrder.selector,
@@ -347,7 +350,8 @@ contract LendingAccount {
             side,
             price,
             amount,
-            expiry
+            expiry,
+            referrer
         );
         _checkRisk(orderBook, data);
         TokenSpotOrderBook(orderBook).placeOrder(
@@ -357,7 +361,8 @@ contract LendingAccount {
             side,
             price,
             amount,
-            expiry
+            expiry,
+            referrer
         );
     }
 
@@ -372,16 +377,18 @@ contract LendingAccount {
         address orderBook,
         uint256 makerOrderId,
         uint256 amount,
-        address feeToken
+        address feeToken,
+        address referrer
     ) external onlyOwner whenNotLiquidating {
         bytes memory data = abi.encodeWithSelector(
             TokenSpotOrderBook.acceptOrder.selector,
             makerOrderId,
             amount,
-            feeToken
+            feeToken,
+            referrer
         );
         _checkRisk(orderBook, data);
-        TokenSpotOrderBook(orderBook).acceptOrder(makerOrderId, amount, feeToken);
+        TokenSpotOrderBook(orderBook).acceptOrder(makerOrderId, amount, feeToken, referrer);
     }
 
     // =========================================================
@@ -399,7 +406,8 @@ contract LendingAccount {
         address feeToken,
         OptionsOrderBook.OrderIntent intent,
         uint256 size,
-        uint256 askPrice
+        uint256 askPrice,
+        address referrer
     ) external onlyOwner whenNotLiquidating {
         bytes memory data = abi.encodeWithSelector(
             OptionsOrderBook.placeOrder.selector,
@@ -412,7 +420,8 @@ contract LendingAccount {
             feeToken,
             intent,
             size,
-            askPrice
+            askPrice,
+            referrer
         );
         _checkRisk(orderBook, data);
         OptionsOrderBook(orderBook).placeOrder(
@@ -425,7 +434,8 @@ contract LendingAccount {
             feeToken,
             intent,
             size,
-            askPrice
+            askPrice,
+            referrer
         );
     }
 
@@ -440,16 +450,18 @@ contract LendingAccount {
         address orderBook,
         uint256 makerOrderId,
         uint256 amount,
-        address feeToken
+        address feeToken,
+        address referrer
     ) external onlyOwner whenNotLiquidating {
         bytes memory data = abi.encodeWithSelector(
             OptionsOrderBook.acceptOrder.selector,
             makerOrderId,
             amount,
-            feeToken
+            feeToken,
+            referrer
         );
         _checkRisk(orderBook, data);
-        OptionsOrderBook(orderBook).acceptOrder(makerOrderId, amount, feeToken);
+        OptionsOrderBook(orderBook).acceptOrder(makerOrderId, amount, feeToken, referrer);
     }
 
     // =========================================================
@@ -495,7 +507,8 @@ contract LendingAccount {
         uint256 price,
         uint256 amount,
         uint256 expiry,
-        address feeToken
+        address feeToken,
+        address referrer
     ) external onlyOwner whenNotLiquidating {
         bytes memory data = abi.encodeWithSelector(
             FuturesOrderBook.placeOrder.selector,
@@ -504,10 +517,19 @@ contract LendingAccount {
             price,
             amount,
             expiry,
-            feeToken
+            feeToken,
+            referrer
         );
         _checkRisk(orderBook, data);
-        FuturesOrderBook(orderBook).placeOrder(marketKey, intent, price, amount, expiry, feeToken);
+        FuturesOrderBook(orderBook).placeOrder(
+            marketKey,
+            intent,
+            price,
+            amount,
+            expiry,
+            feeToken,
+            referrer
+        );
     }
 
     function cancelOrderFutures(
@@ -517,39 +539,108 @@ contract LendingAccount {
         FuturesOrderBook(orderBook).cancelOrder(orderId);
     }
 
+    function matchFuturesImbalance(
+        address orderBook,
+        bytes32 marketKey,
+        uint256 maxMatches
+    )
+        external
+        onlyOwner
+        whenNotLiquidating
+        returns (uint256 matchedAmount, uint256 callerReward, uint256 protocolFee)
+    {
+        if (orderBook == address(0)) revert ZeroAddress();
+        if (maxMatches == 0) revert InvalidAmount();
+
+        bytes memory data = abi.encodeWithSelector(
+            FuturesOrderBook.matchImbalance.selector,
+            marketKey,
+            maxMatches
+        );
+        _checkRisk(orderBook, data);
+
+        return FuturesOrderBook(orderBook).matchImbalance(marketKey, maxMatches);
+    }
+
     function addFuturesMargin(
         address futuresContract,
         bytes32 marketKey,
-        bool isLong,
         uint256 amount
     ) external onlyOwner whenNotLiquidating {
         bytes memory data = abi.encodeWithSelector(
             FuturesContract.addMargin.selector,
             marketKey,
-            isLong,
             amount
         );
         _checkRisk(futuresContract, data);
-        FuturesContract(futuresContract).addMargin(marketKey, isLong, amount);
+        FuturesContract(futuresContract).addMargin(marketKey, amount);
     }
 
     function releaseFuturesMargin(
         address futuresContract,
-        bytes32 marketKey,
-        bool isLong
+        bytes32 marketKey
     ) external onlyOwner whenNotLiquidating {
         bytes memory data = abi.encodeWithSelector(
             FuturesContract.releaseExcessMargin.selector,
-            marketKey,
-            isLong
+            marketKey
         );
 
         _checkRisk(futuresContract, data);
 
-        FuturesContract(futuresContract).releaseExcessMargin(marketKey, isLong);
+        FuturesContract(futuresContract).releaseExcessMargin(marketKey);
     }
 
-    // =========================================================
+    function liquidateFuturesPosition(
+        address futuresContract,
+        bytes32 marketKey,
+        address account
+    ) external onlyOwner whenNotLiquidating returns (uint256 seizedMargin, uint256 callerReward) {
+        if (futuresContract == address(0)) revert ZeroAddress();
+        if (account == address(0)) revert ZeroAddress();
+
+        return FuturesContract(futuresContract).liquidatePosition(marketKey, account);
+    }
+
+    function liquidateFuturesHead(
+        address futuresContract,
+        bytes32 marketKey,
+        FuturesTypes.PositionSide side,
+        uint256 maxSteps
+    ) external onlyOwner whenNotLiquidating returns (uint256 processed) {
+        if (futuresContract == address(0)) revert ZeroAddress();
+        if (maxSteps == 0) revert InvalidAmount();
+
+        return FuturesContract(futuresContract).liquidateHead(marketKey, side, maxSteps);
+    }
+
+    function rebaseFuturesLosingPositionsToBufferTarget(
+        address futuresContract,
+        bytes32 marketKey,
+        FuturesTypes.PositionSide losingSide,
+        uint256 targetSettlementBuffer,
+        uint256 maxSteps
+    )
+        external
+        onlyOwner
+        whenNotLiquidating
+        returns (
+            uint256 scanned,
+            uint256 rebased,
+            uint256 amountCollected,
+            uint256 settlementBufferAfter
+        )
+    {
+        if (futuresContract == address(0)) revert ZeroAddress();
+        if (maxSteps == 0) revert InvalidAmount();
+
+        return
+            FuturesContract(futuresContract).rebaseLosingPositionsToBufferTarget(
+                marketKey,
+                losingSide,
+                targetSettlementBuffer,
+                maxSteps
+            );
+    }
 
     // =========================================================
     // MarginOptionsOrderBook / MarginOptionContract
@@ -562,7 +653,8 @@ contract LendingAccount {
         uint256 size,
         uint256 askPrice,
         uint256 expiry,
-        address feeToken
+        address feeToken,
+        address referrer
     ) external onlyOwner whenNotLiquidating {
         if (orderbook == address(0)) revert ZeroAddress();
         bytes memory data = abi.encodeWithSelector(
@@ -572,7 +664,8 @@ contract LendingAccount {
             size,
             askPrice,
             expiry,
-            feeToken
+            feeToken,
+            referrer
         );
         _checkRisk(orderbook, data);
         MarginOptionsOrderBook(orderbook).placeOrder(
@@ -581,34 +674,8 @@ contract LendingAccount {
             size,
             askPrice,
             expiry,
-            feeToken
-        );
-    }
-
-    function placeOrderMarginOptionForMarket(
-        address orderbook,
-        string calldata ticker,
-        MarginOptionContract.OptionType optionType,
-        address oracle,
-        uint256 strikePrice,
-        uint256 marketExpiry,
-        uint256 collateralBps,
-        MarginOptionsOrderBook.OrderIntent intent,
-        uint256 size,
-        uint256 askPrice,
-        uint256 expiry,
-        address feeToken
-    ) external onlyOwner whenNotLiquidating {
-        if (orderbook == address(0)) revert ZeroAddress();
-        bytes memory data = abi.encodeWithSelector(
-            MarginOptionsOrderBook.placeOrderForMarket.selector,
-            ticker, optionType, oracle, strikePrice, marketExpiry, collateralBps,
-            intent, size, askPrice, expiry, feeToken
-        );
-        _checkRisk(orderbook, data);
-        MarginOptionsOrderBook(orderbook).placeOrderForMarket(
-            ticker, optionType, oracle, strikePrice, marketExpiry, collateralBps,
-            intent, size, askPrice, expiry, feeToken
+            feeToken,
+            referrer
         );
     }
 
@@ -616,17 +683,19 @@ contract LendingAccount {
         address orderbook,
         uint256 makerOrderId,
         uint256 amount,
-        address feeToken
+        address feeToken,
+        address referrer
     ) external onlyOwner whenNotLiquidating {
         if (orderbook == address(0)) revert ZeroAddress();
         bytes memory data = abi.encodeWithSelector(
             MarginOptionsOrderBook.acceptOrder.selector,
             makerOrderId,
             amount,
-            feeToken
+            feeToken,
+            referrer
         );
         _checkRisk(orderbook, data);
-        MarginOptionsOrderBook(orderbook).acceptOrder(makerOrderId, amount, feeToken);
+        MarginOptionsOrderBook(orderbook).acceptOrder(makerOrderId, amount, feeToken, referrer);
     }
 
     function cancelOrderMarginOption(
@@ -676,7 +745,8 @@ contract LendingAccount {
         uint256 payoutAmount,
         uint256 askPrice,
         uint256 expiry,
-        address feeToken
+        address feeToken,
+        address referrer
     ) external onlyOwner whenNotLiquidating returns (uint256) {
         if (orderbook == address(0)) revert ZeroAddress();
         bytes memory data = abi.encodeWithSelector(
@@ -686,7 +756,8 @@ contract LendingAccount {
             payoutAmount,
             askPrice,
             expiry,
-            feeToken
+            feeToken,
+            referrer
         );
         _checkRisk(orderbook, data);
         return
@@ -696,51 +767,33 @@ contract LendingAccount {
                 payoutAmount,
                 askPrice,
                 expiry,
-                feeToken
+                feeToken,
+                referrer
             );
-    }
-
-    function placeOrderBinaryMarginOptionForMarket(
-        address orderbook,
-        string calldata ticker,
-        BinaryMarginOptionContract.OptionType optionType,
-        address oracle,
-        uint256 strikePrice,
-        uint256 marketExpiry,
-        uint8 intent,
-        uint256 payoutAmount,
-        uint256 askPrice,
-        uint256 expiry,
-        address feeToken
-    ) external onlyOwner whenNotLiquidating returns (uint256) {
-        if (orderbook == address(0)) revert ZeroAddress();
-        bytes memory data = abi.encodeWithSelector(
-            BinaryMarginOptionsOrderBook.placeOrderForMarket.selector,
-            ticker, optionType, oracle, strikePrice, marketExpiry,
-            intent, payoutAmount, askPrice, expiry, feeToken
-        );
-        _checkRisk(orderbook, data);
-        return BinaryMarginOptionsOrderBook(orderbook).placeOrderForMarket(
-            ticker, optionType, oracle, strikePrice, marketExpiry,
-            intent, payoutAmount, askPrice, expiry, feeToken
-        );
     }
 
     function acceptOrderBinaryMarginOption(
         address orderbook,
         uint256 makerOrderId,
         uint256 amount,
-        address feeToken
+        address feeToken,
+        address referrer
     ) external onlyOwner whenNotLiquidating {
         if (orderbook == address(0)) revert ZeroAddress();
         bytes memory data = abi.encodeWithSelector(
             BinaryMarginOptionsOrderBook.acceptOrder.selector,
             makerOrderId,
             amount,
-            feeToken
+            feeToken,
+            referrer
         );
         _checkRisk(orderbook, data);
-        BinaryMarginOptionsOrderBook(orderbook).acceptOrder(makerOrderId, amount, feeToken);
+        BinaryMarginOptionsOrderBook(orderbook).acceptOrder(
+            makerOrderId,
+            amount,
+            feeToken,
+            referrer
+        );
     }
 
     function cancelOrderBinaryMarginOption(
@@ -962,26 +1015,12 @@ contract LendingAccount {
         IERC721(nft).safeTransferFrom(address(this), owner, tokenId);
         emit RescueNft(nft, tokenId);
     }
-
-    function rescueNFT1155Batch(
-        address nft,
-        uint256[] calldata tokenIds,
-        uint256[] calldata amounts
-    ) external onlyOwner whenNotLiquidating noRestrictedWithdrawals {
-        if (nft == address(0)) revert ZeroAddress();
-        IERC1155(nft).safeBatchTransferFrom(address(this), owner, tokenIds, amounts, "");
-        for (uint256 i = 0; i < tokenIds.length; i++) {
-            emit RescueNft(nft, tokenIds[i]);
-        }
-    }
-
-    function rescueNFT1155(
-        address nft,
-        uint256 tokenId,
-        uint256 amount
-    ) external onlyOwner whenNotLiquidating noRestrictedWithdrawals {
-        if (nft == address(0)) revert ZeroAddress();
-        IERC1155(nft).safeTransferFrom(address(this), owner, tokenId, amount, "");
-        emit RescueNft(nft, tokenId);
+    function onERC721Received(
+        address,
+        address,
+        uint256,
+        bytes calldata
+    ) external pure returns (bytes4) {
+        return this.onERC721Received.selector;
     }
 }

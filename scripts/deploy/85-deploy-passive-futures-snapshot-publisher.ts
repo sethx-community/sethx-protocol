@@ -1,3 +1,5 @@
+import { safeDeployContract } from "./safe-deploy-contract.js";
+
 export async function deployPassiveFuturesSnapshotPublisher(
   ethers: any,
   deployment: {
@@ -7,16 +9,11 @@ export async function deployPassiveFuturesSnapshotPublisher(
     };
   },
 ) {
-  const PassiveFuturesSnapshotPublisher = await ethers.getContractFactory(
+  const publisher = await safeDeployContract(
+    ethers,
     "PassiveFuturesSnapshotPublisher",
+    [deployment.addresses.treasuryAuthority, deployment.addresses.futuresOrderBook],
   );
-
-  const publisher = await PassiveFuturesSnapshotPublisher.deploy(
-    deployment.addresses.treasuryAuthority,
-    deployment.addresses.futuresOrderBook,
-  );
-
-  await publisher.waitForDeployment();
 
   return {
     addresses: {

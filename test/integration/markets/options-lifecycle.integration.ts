@@ -316,10 +316,10 @@ describe("Options lifecycle integration", function () {
           OrderIntent.WriteOption,
           ONE,
           ONE / 10n,
-        ),
+         ethers.ZeroAddress),
     );
     await expectRevert(
-      contracts.optionsOrderBook.connect(actors.attacker).acceptOrder(1n, 1n, ETH),
+      contracts.optionsOrderBook.connect(actors.attacker).acceptOrder(1n, 1n, ETH, ethers.ZeroAddress),
     );
     await expectRevert(
       contracts.optionsOrderBook.connect(actors.attacker).cancelOrder(1n),
@@ -400,7 +400,7 @@ describe("Options lifecycle integration", function () {
         OrderIntent.WriteOption,
         s.size,
         s.premiumPerUnit,
-      )
+       ethers.ZeroAddress)
     ).wait();
 
     const normalizedStrike = await s.contracts.optionContract.normalizeStrike(s.strike);
@@ -422,7 +422,7 @@ describe("Options lifecycle integration", function () {
     await (
       await s.holder
         .connect(s.actors.bob)
-        .acceptOrderOption(await s.contracts.optionsOrderBook.getAddress(), orderId, s.size, ETH)
+        .acceptOrderOption(await s.contracts.optionsOrderBook.getAddress(), orderId, s.size, ETH, ethers.ZeroAddress)
     ).wait();
 
     await expectBalances(s.contracts.vault, s.writerAddress, s.assetToken, {
@@ -538,7 +538,7 @@ describe("Options lifecycle integration", function () {
         OrderIntent.WriteOption,
         size,
         premiumPerUnit,
-      )
+       ethers.ZeroAddress)
     ).wait();
 
     const normalizedStrike = await contracts.optionContract.normalizeStrike(strike);
@@ -560,7 +560,7 @@ describe("Options lifecycle integration", function () {
     await (
       await holder
         .connect(actors.bob)
-        .acceptOrderOption(await contracts.optionsOrderBook.getAddress(), orderId, size, ETH)
+        .acceptOrderOption(await contracts.optionsOrderBook.getAddress(), orderId, size, ETH, ethers.ZeroAddress)
     ).wait();
 
     await expectBalances(contracts.vault, writerAddress, assetToken, {
@@ -621,13 +621,13 @@ describe("Options lifecycle integration", function () {
         OrderIntent.WriteOption,
         s.size,
         s.premiumPerUnit,
-      )
+       ethers.ZeroAddress)
     ).wait();
 
     await (
       await s.holder
         .connect(s.actors.bob)
-        .acceptOrderOption(await s.contracts.optionsOrderBook.getAddress(), orderId, s.size, ETH)
+        .acceptOrderOption(await s.contracts.optionsOrderBook.getAddress(), orderId, s.size, ETH, ethers.ZeroAddress)
     ).wait();
 
     const normalizedStrike = await s.contracts.optionContract.normalizeStrike(s.strike);
@@ -703,7 +703,7 @@ describe("Options lifecycle integration", function () {
         OrderIntent.WriteOption,
         s.size,
         s.premiumPerUnit,
-      )
+       ethers.ZeroAddress)
     ).wait();
 
     await expectBalances(s.contracts.vault, s.writerAddress, s.assetToken, {

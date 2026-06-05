@@ -51,12 +51,13 @@ export async function revokeBootstrapAdmin(
     return true;
   }
 
-
-  async function renounceBootstrapRoleIfAddress(
+  async function renounceRoleIfReplacementHasRole(
     contractName: string,
     address: string | undefined,
     roleGetter: string,
+    replacement: string | undefined,
     label: string,
+    replacementLabel: string,
   ) {
     if (!address) return false;
 
@@ -64,7 +65,19 @@ export async function revokeBootstrapAdmin(
 
     if (typeof contract[roleGetter] !== "function") return false;
 
+    if (!replacement) {
+      throw new Error(
+        `Refusing to revoke deployer ${roleGetter}: replacement address is missing`,
+      );
+    }
+
     const role = await contract[roleGetter]();
+
+    if (!(await contract.hasRole(role, replacement))) {
+      throw new Error(
+        `Refusing to revoke deployer ${roleGetter}: replacement does not have role`,
+      );
+    }
 
     if (await contract.hasRole(role, deployerAddress)) {
       const tx = await contract.renounceRole(role, deployerAddress);
@@ -72,6 +85,7 @@ export async function revokeBootstrapAdmin(
     }
 
     revoked[label] = !(await contract.hasRole(role, deployerAddress));
+    revoked[replacementLabel] = await contract.hasRole(role, replacement);
 
     return true;
   }
@@ -88,6 +102,41 @@ export async function revokeBootstrapAdmin(
     deployment.addresses.sethxVault,
     "DEFAULT_ADMIN_ROLE",
     "vaultDefaultAdminRevoked",
+  );
+
+  await renounceRoleIfAddress(
+    "SethxVault",
+    deployment.addresses.sethxVault,
+    "GOVERNOR_ROLE",
+    "vaultGovernorRevoked",
+  );
+
+  await renounceRoleIfAddress(
+    "OptionsValuationAdapter",
+    deployment.addresses.optionsValuationAdapter,
+    "DEFAULT_ADMIN_ROLE",
+    "optionsValuationAdapterDefaultAdminRevoked",
+  );
+
+  await renounceRoleIfAddress(
+    "OptionsValuationAdapter",
+    deployment.addresses.optionsValuationAdapter,
+    "GOVERNOR_ROLE",
+    "optionsValuationAdapterGovernorRevoked",
+  );
+
+  await renounceRoleIfAddress(
+    "FuturesValuationAdapter",
+    deployment.addresses.futuresValuationAdapter,
+    "DEFAULT_ADMIN_ROLE",
+    "futuresValuationAdapterDefaultAdminRevoked",
+  );
+
+  await renounceRoleIfAddress(
+    "FuturesValuationAdapter",
+    deployment.addresses.futuresValuationAdapter,
+    "GOVERNOR_ROLE",
+    "futuresValuationAdapterGovernorRevoked",
   );
 
   await renounceRoleIfAddress(
@@ -195,7 +244,6 @@ export async function revokeBootstrapAdmin(
     "binaryMarginOptionContractGovernorRevoked",
   );
 
-
   await renounceRoleIfAddress(
     "MarginOptionContract",
     deployment.addresses.marginOptionContract,
@@ -210,14 +258,12 @@ export async function revokeBootstrapAdmin(
     "marginOptionContractGovernorRevoked",
   );
 
-
   await renounceRoleIfAddress(
     "FuturesContract",
     deployment.addresses.futuresContract,
     "DEFAULT_ADMIN_ROLE",
     "futuresContractDefaultAdminRevoked",
   );
-
 
   await renounceRoleIfAddress(
     "FuturesContract",
@@ -227,24 +273,62 @@ export async function revokeBootstrapAdmin(
   );
 
   await renounceRoleIfAddress(
-    "FuturesContract",
-    deployment.addresses.futuresContract,
-    "MARKET_MANAGER_ROLE",
-    "futuresContractMarketManagerRevoked",
+    "FuturesPositionStore",
+    deployment.addresses.futuresPositionStore,
+    "DEFAULT_ADMIN_ROLE",
+    "futuresPositionStoreDefaultAdminRevoked",
   );
 
-  await renounceBootstrapRoleIfAddress(
-    "FuturesContract",
-    deployment.addresses.futuresContract,
-    "SETTLEMENT_MANAGER_ROLE",
-    "futuresContractBootstrapSettlementManagerRevoked",
-  );
+  if (
+    deployment.addresses.futuresPositionStore &&
+    deployment.addresses.futuresContract
+  ) {
+    const futuresPositionStore = await ethers.getContractAt(
+      "FuturesPositionStore",
+      deployment.addresses.futuresPositionStore,
+    );
 
-  await renounceBootstrapRoleIfAddress(
-    "FuturesOrderBook",
-    deployment.addresses.futuresOrderBook,
-    "SETTLEMENT_MANAGER_ROLE",
-    "futuresOrderBookBootstrapSettlementManagerRevoked",
+    const engineRole = await futuresPositionStore.FUTURES_ENGINE_ROLE();
+
+    const futuresContractHasEngineRole = await futuresPositionStore.hasRole(
+      engineRole,
+      deployment.addresses.futuresContract,
+    );
+
+    if (!futuresContractHasEngineRole) {
+      throw new Error(
+        "Refusing to revoke deployer FUTURES_ENGINE_ROLE: FuturesContract does not have FUTURES_ENGINE_ROLE",
+      );
+    }
+
+    if (await futuresPositionStore.hasRole(engineRole, deployerAddress)) {
+      const tx = await futuresPositionStore.renounceRole(
+        engineRole,
+        deployerAddress,
+      );
+      await tx.wait();
+    }
+
+    revoked.futuresPositionStoreBootstrapEngineRevoked =
+      !(await futuresPositionStore.hasRole(engineRole, deployerAddress));
+
+    revoked.futuresPositionStoreEngineRoleKeptOnFuturesContract =
+      await futuresPositionStore.hasRole(
+        engineRole,
+        deployment.addresses.futuresContract,
+      );
+  }
+
+  // Revoke the deployer's bootstrap lending loss authority before GOVERNOR_ROLE.
+  // The LiquidationEngine is the only runtime component that should hold this
+  // role for liquidation repayment and loss-finalization calls.
+  await renounceRoleIfReplacementHasRole(
+    "LendingContract",
+    deployment.addresses.lendingContract,
+    "LOSS_MANAGER_ROLE",
+    deployment.addresses.liquidationEngine,
+    "lendingContractLossManagerRevoked",
+    "lendingContractLossManagerKeptOnLiquidationEngine",
   );
 
   await renounceRoleIfAddress(
@@ -324,7 +408,6 @@ export async function revokeBootstrapAdmin(
     "treasuryAuthorityDefaultAdminRevoked",
   );
 
-
   await renounceRoleIfAddress(
     "TreasuryAuthority",
     deployment.addresses.treasuryAuthority,
@@ -361,6 +444,13 @@ export async function revokeBootstrapAdmin(
   );
 
   await renounceRoleIfAddress(
+    "TreasuryFuturesMaintenanceModule",
+    deployment.addresses.treasuryFuturesMaintenanceModule,
+    "DEFAULT_ADMIN_ROLE",
+    "treasuryFuturesMaintenanceModuleDefaultAdminRevoked",
+  );
+
+  await renounceRoleIfAddress(
     "SethxFeeConversionOracle",
     deployment.addresses.sethxFeeConversionOracle,
     "DEFAULT_ADMIN_ROLE",
@@ -372,6 +462,34 @@ export async function revokeBootstrapAdmin(
     deployment.addresses.sethxFeeConversionOracle,
     "GOVERNOR_ROLE",
     "sethxFeeConversionOracleGovernorRevoked",
+  );
+
+  await renounceRoleIfAddress(
+    "ChainlinkUsdcEthOracle",
+    deployment.addresses.usdcEthOracle,
+    "DEFAULT_ADMIN_ROLE",
+    "usdcEthOracleDefaultAdminRevoked",
+  );
+
+  await renounceRoleIfAddress(
+    "ChainlinkUsdcEthOracle",
+    deployment.addresses.usdcEthOracle,
+    "GOVERNOR_ROLE",
+    "usdcEthOracleGovernorRevoked",
+  );
+
+  await renounceRoleIfAddress(
+    "ChainlinkWbtcEthOracle",
+    deployment.addresses.wbtcEthOracle,
+    "DEFAULT_ADMIN_ROLE",
+    "wbtcEthOracleDefaultAdminRevoked",
+  );
+
+  await renounceRoleIfAddress(
+    "ChainlinkWbtcEthOracle",
+    deployment.addresses.wbtcEthOracle,
+    "GOVERNOR_ROLE",
+    "wbtcEthOracleGovernorRevoked",
   );
 
   await renounceRoleIfAddress(

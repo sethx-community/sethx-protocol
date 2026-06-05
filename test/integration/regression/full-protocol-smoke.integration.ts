@@ -99,8 +99,8 @@ describe("Full protocol smoke regression", function () {
     await depositEth(carolLending, actors.carol, ethers.parseEther("5"));
 
     const spotOrder = await contracts.tokenSpotOrderBook.nextOrderId();
-    await (await alice.connect(actors.alice).placeOrderTokenSpot(await contracts.tokenSpotOrderBook.getAddress(), ETH, tokenA, tokenB, 1, ONE, ethers.parseEther("5"), 0)).wait();
-    await (await bob.connect(actors.bob).acceptOrderTokenSpot(await contracts.tokenSpotOrderBook.getAddress(), spotOrder, ethers.parseEther("5"), ETH)).wait();
+    await (await alice.connect(actors.alice).placeOrderTokenSpot(await contracts.tokenSpotOrderBook.getAddress(), ETH, tokenA, tokenB, 1, ONE, ethers.parseEther("5"), 0, ethers.ZeroAddress)).wait();
+    await (await bob.connect(actors.bob).acceptOrderTokenSpot(await contracts.tokenSpotOrderBook.getAddress(), spotOrder, ethers.parseEther("5"), ETH, ethers.ZeroAddress)).wait();
     expect(await contracts.vault.erc20Balances(bobAddress, tokenA)).to.equal(ethers.parseEther("5"));
 
     const now = BigInt((await ethers.provider.getBlock("latest"))!.timestamp);

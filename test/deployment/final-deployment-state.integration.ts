@@ -30,8 +30,6 @@ const REQUIRED_STAGES = [
   "63",
   "64",
   "65",
-  "66",
-  "67",
   "68",
   "69",
   "70",
@@ -53,11 +51,11 @@ const REQUIRED_STAGES = [
   "86",
   "87",
   "88",
+  "89",
 ] as const;
 
 const REQUIRED_ADDRESS_KEYS = [
   "sethxToken",
-  "founderTokenTimelock",
   "treasuryAuthority",
   "protocolTreasury",
   "sethxTimelock",
@@ -76,7 +74,6 @@ const REQUIRED_ADDRESS_KEYS = [
   "marginOptionsOrderBook",
   "futuresContract",
   "futuresOrderBook",
-  "settlementManager",
   "lendingContract",
   "lendingOrderBook",
   "optionsValuationAdapter",
@@ -117,19 +114,44 @@ describe("Final deployment state", function () {
       const address = requireLocalAddress(deployment, key);
       expectAddress(address);
     }
+
+    expect(deployment.addresses.founderTokenTimelocks).to.have.length(6);
+    for (const lock of deployment.addresses.founderTokenTimelocks ?? []) {
+      expectAddress(lock.address);
+      expectAddress(lock.beneficiary);
+      expect(BigInt(lock.allocation)).to.be.greaterThan(0n);
+      expect(BigInt(lock.releaseTime)).to.be.greaterThan(0n);
+    }
   });
 
   it("records token distribution and governance output sections", function () {
     const deployment = readLocalDeployment();
 
     expect(deployment.tokenDistribution).to.not.equal(undefined);
-    expect(BigInt(deployment.tokenDistribution.totalSupply)).to.be.greaterThan(0n);
-    expect(BigInt(deployment.tokenDistribution.founderAmount)).to.be.greaterThan(0n);
-    expect(BigInt(deployment.tokenDistribution.treasuryAmount)).to.be.greaterThan(0n);
+    expect(BigInt(deployment.tokenDistribution.totalSupply)).to.be.greaterThan(
+      0n,
+    );
+    expect(
+      BigInt(deployment.tokenDistribution.founderAmount),
+    ).to.be.greaterThan(0n);
+    expect(
+      BigInt(
+        deployment.tokenDistribution.founderTimelockTotal ??
+          deployment.tokenDistribution.founderAmount,
+      ),
+    ).to.equal(BigInt(deployment.tokenDistribution.founderAmount));
+    expect(deployment.tokenDistribution.founderTimelocks).to.have.length(6);
+    expect(
+      BigInt(deployment.tokenDistribution.treasuryAmount),
+    ).to.be.greaterThan(0n);
 
     expect(deployment.governance).to.not.equal(undefined);
-    expect(BigInt(deployment.governance!.timelockDelaySeconds)).to.be.greaterThan(0n);
-    expect(BigInt(deployment.governance!.votingPeriodBlocks)).to.be.greaterThan(0n);
+    expect(
+      BigInt(deployment.governance!.timelockDelaySeconds),
+    ).to.be.greaterThan(0n);
+    expect(BigInt(deployment.governance!.votingPeriodBlocks)).to.be.greaterThan(
+      0n,
+    );
     expect(BigInt(deployment.governance!.quorumBps)).to.be.greaterThan(0n);
   });
 });

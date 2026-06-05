@@ -3,11 +3,12 @@ const ETH = "ETH";
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 const TOTAL_SUPPLY = 1_000_000_000n * WAD;
-const FOUNDER_ALLOCATION = 150_000_000n * WAD;
-const TREASURY_ALLOCATION = 850_000_000n * WAD;
+const FOUNDER_ALLOCATION = 210_000_000n * WAD;
+const TREASURY_ALLOCATION = 790_000_000n * WAD;
 
 const ONE_DAY_SECONDS = 24n * 60n * 60n;
-const FOUNDER_LOCK_SECONDS = 2n * 365n * ONE_DAY_SECONDS;
+const FOUNDER_TWO_YEAR_LOCK_SECONDS = 2n * 365n * ONE_DAY_SECONDS;
+const FOUNDER_FIVE_YEAR_LOCK_SECONDS = 5n * 365n * ONE_DAY_SECONDS;
 
 const FIXED_FEE_ETH = 100_000_000_000_000n; // 0.0001 ETH
 const HOSTING_MONTHLY_LIMIT_ETH = 250_000_000_000_000_000n; // 0.25 ETH
@@ -20,7 +21,38 @@ export const INITIAL_PROTOCOL_PARAMETERS = {
     totalSupply: TOTAL_SUPPLY,
     founderAllocation: FOUNDER_ALLOCATION,
     treasuryAllocation: TREASURY_ALLOCATION,
-    founderLockSeconds: FOUNDER_LOCK_SECONDS,
+    founderTimelocks: [
+      {
+        founderIndex: 0,
+        releaseDelaySeconds: FOUNDER_TWO_YEAR_LOCK_SECONDS,
+        allocationBps: 350n,
+      },
+      {
+        founderIndex: 0,
+        releaseDelaySeconds: FOUNDER_FIVE_YEAR_LOCK_SECONDS,
+        allocationBps: 350n,
+      },
+      {
+        founderIndex: 1,
+        releaseDelaySeconds: FOUNDER_TWO_YEAR_LOCK_SECONDS,
+        allocationBps: 350n,
+      },
+      {
+        founderIndex: 1,
+        releaseDelaySeconds: FOUNDER_FIVE_YEAR_LOCK_SECONDS,
+        allocationBps: 350n,
+      },
+      {
+        founderIndex: 2,
+        releaseDelaySeconds: FOUNDER_TWO_YEAR_LOCK_SECONDS,
+        allocationBps: 350n,
+      },
+      {
+        founderIndex: 2,
+        releaseDelaySeconds: FOUNDER_FIVE_YEAR_LOCK_SECONDS,
+        allocationBps: 350n,
+      },
+    ],
   },
 
   governance: {
@@ -28,13 +60,13 @@ export const INITIAL_PROTOCOL_PARAMETERS = {
     quorumBps: 20,
 
     // Production assumption: about 12 seconds per block.
-    // 0.5 day = 43,200 seconds / 12 = 3,600 blocks.
-    votingDelayBlocks: 3_600n,
+    // 1 day = 86,400 seconds / 12 = 7,200 blocks.
+    votingDelayBlocks: 7_200n,
 
-    // 1.5 days = 129,600 seconds / 12 = 10,800 blocks.
-    votingPeriodBlocks: 10_800n,
+    // 5 days = 432,000 seconds / 12 = 36,000 blocks.
+    votingPeriodBlocks: 36_000n,
 
-    proposalThreshold: 0n,
+    proposalThreshold: 100_000n * WAD,
     timelockDelaySeconds: 2n * ONE_DAY_SECONDS,
   },
 
@@ -220,15 +252,13 @@ export const INITIAL_PROTOCOL_PARAMETERS = {
   },
 
   treasury: {
-    // Replace before production-style initialization.
-    // For local/dev you can use deployer or a dedicated local signer.
-    initialTreasurer: "0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199",
-    initialGuardian: "0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199",
+    initialTreasurer: "0xFFb88E0a3e2fDe477107230CB412cF7c560437f1",
+    initialGuardian: "0xFFb88E0a3e2fDe477107230CB412cF7c560437f1",
 
     paymentRecipients: [
       {
         id: "HOSTING",
-        recipient: "0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199",
+        recipient: "0xFFb88E0a3e2fDe477107230CB412cF7c560437f1",
         token: ETH,
         monthlyLimit: HOSTING_MONTHLY_LIMIT_ETH,
         approved: true,

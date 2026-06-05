@@ -1,3 +1,5 @@
+import { safeDeployContract } from "./safe-deploy-contract.js";
+
 export async function deployTreasuryVaultModule(
   ethers: any,
   deployment: {
@@ -7,16 +9,11 @@ export async function deployTreasuryVaultModule(
     };
   },
 ) {
-  const TreasuryVaultModule = await ethers.getContractFactory(
+  const treasuryVaultModule = await safeDeployContract(
+    ethers,
     "TreasuryVaultModule",
+    [deployment.addresses.treasuryAuthority, deployment.addresses.sethxVault],
   );
-
-  const treasuryVaultModule = await TreasuryVaultModule.deploy(
-    deployment.addresses.treasuryAuthority,
-    deployment.addresses.sethxVault,
-  );
-
-  await treasuryVaultModule.waitForDeployment();
 
   return {
     addresses: {

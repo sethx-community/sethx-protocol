@@ -24,6 +24,16 @@ const OracleContext = {
   FUTURE_SETTLEMENT: 2,
 } as const;
 
+const PositionSide = {
+  None: 0n,
+  Long: 1n,
+  Short: 2n,
+} as const;
+
+function isOpenPosition(p: any): boolean {
+  return p.size > 0n && (p.side === PositionSide.Long || p.side === PositionSide.Short);
+}
+
 function normalizePrice(rawPrice: bigint, oracleDecimals = 8n, marginDecimals = 18n): bigint {
   if (oracleDecimals === marginDecimals) return rawPrice;
   if (oracleDecimals < marginDecimals) return rawPrice * 10n ** (marginDecimals - oracleDecimals);
@@ -142,6 +152,69 @@ async function publishThroughTreasurer(
   ).wait();
 }
 
+async function setTreasurerPermissionsForTest(
+  contracts: any,
+  governor: any,
+  treasurer: any,
+  permissions: bigint,
+  label: string,
+) {
+  const treasurerAddress = await treasurer.getAddress();
+
+  if (await contracts.treasuryAuthority.isTreasurer(treasurerAddress)) {
+    await (
+      await contracts.treasuryAuthority
+        .connect(governor)
+        .setTreasurerPermissions(treasurerAddress, permissions)
+    ).wait();
+  } else {
+    await (
+      await contracts.treasuryAuthority
+        .connect(governor)
+        .appointTreasurer(treasurerAddress, label, permissions)
+    ).wait();
+  }
+}
+
+async function ensurePassiveQuoteTreasurerOperational(
+  contracts: any,
+  timelockSigner: any,
+  treasurer: any,
+) {
+  const authority = contracts.treasuryAuthority;
+  const treasurerAddress = await treasurer.getAddress();
+  const passiveQuotePermission = await authority.PERMISSION_PUBLISH_PASSIVE_QUOTES();
+
+  if (!(await authority.isTreasurer(treasurerAddress))) {
+    await (
+      await authority
+        .connect(timelockSigner)
+        .appointTreasurer(treasurerAddress, "passive quote integration treasurer", passiveQuotePermission)
+    ).wait();
+  } else {
+    const currentPermissions = await authority.getTreasurerPermissions(treasurerAddress);
+    if ((currentPermissions & passiveQuotePermission) !== passiveQuotePermission) {
+      await (
+        await authority
+          .connect(timelockSigner)
+          .setTreasurerPermissions(treasurerAddress, currentPermissions | passiveQuotePermission)
+      ).wait();
+    }
+  }
+
+  if (await authority.killed()) {
+    await (await authority.connect(timelockSigner).unkillTreasury()).wait();
+  }
+
+  if (await authority.frozenTreasurers(treasurerAddress)) {
+    await (await authority.connect(timelockSigner).unfreezeTreasurer(treasurerAddress)).wait();
+  }
+
+  expect(await authority.canCallAsTreasurer(treasurerAddress, passiveQuotePermission)).to.equal(
+    true,
+  );
+}
+
 async function expectPoolEthInvariant(contracts: any, poolAddress: string, label: string) {
   const total = await contracts.vault.ethBalances(poolAddress);
   const locked = await contracts.vault.ethLocked(poolAddress);
@@ -203,6 +276,69 @@ describe("Passive futures pool lifecycle integration", function () {
     await expectRevert(pool.connect(actors.attacker).setWithdrawalsPaused(true));
   });
 
+  it("lets passive-quote-only treasurers publish snapshots without liquidity permission", async function () {
+    const { addresses, contracts } = await loadIntegratedDeployment(ethers);
+    const actors = await loadActors(ethers);
+    const signers = await ethers.getSigners();
+    const quoteOnlyTreasurer = signers[9];
+    const timelockSigner = await impersonateTimelock(ethers, addresses.sethxTimelock);
+
+    const { marketKey, pool, poolAddress } = await createMarketAndPool(
+      contracts,
+      timelockSigner,
+      "PF-QUOTE-PERM",
+    );
+
+    await (await pool.connect(actors.lp1).deposit({ value: 1n * WAD })).wait();
+    await expectPoolEthInvariant(contracts, poolAddress, "quote permission setup");
+
+    const quotePermission = await contracts.treasuryAuthority.PERMISSION_PUBLISH_PASSIVE_QUOTES();
+    await setTreasurerPermissionsForTest(
+      contracts,
+      timelockSigner,
+      quoteOnlyTreasurer,
+      quotePermission,
+      "Passive quote publisher only",
+    );
+
+    await publishThroughTreasurer(
+      contracts,
+      quoteOnlyTreasurer,
+      marketKey,
+      0n,
+      0n,
+      INITIAL_PRICE,
+      SIZE,
+      10n,
+      "quote-only treasurer can publish",
+    );
+
+    expect((await contracts.futuresOrderBook.passiveSnapshot(marketKey)).exists).to.equal(true);
+
+    const liquidityPermission = await contracts.treasuryAuthority.PERMISSION_MANAGE_LIQUIDITY();
+    await setTreasurerPermissionsForTest(
+      contracts,
+      timelockSigner,
+      quoteOnlyTreasurer,
+      liquidityPermission,
+      "Liquidity manager only",
+    );
+
+    await expectRevert(
+      contracts.passiveFuturesSnapshotPublisher
+        .connect(quoteOnlyTreasurer)
+        .publishPassiveSnapshot(
+          marketKey,
+          0n,
+          0n,
+          INITIAL_PRICE,
+          SIZE,
+          10n,
+          "liquidity-only treasurer cannot publish",
+        ),
+    );
+  });
+
   it("lets public LPs deposit, request, cancel, and process withdrawals with exact share accounting and pause controls", async function () {
     const { addresses, contracts } = await loadIntegratedDeployment(ethers);
     const actors = await loadActors(ethers);
@@ -253,6 +389,7 @@ describe("Passive futures pool lifecycle integration", function () {
     const actors = await loadActors(ethers);
     const timelockSigner = await impersonateTimelock(ethers, addresses.sethxTimelock);
     const { marketKey, pool, poolAddress } = await createMarketAndPool(contracts, timelockSigner, "PF-PUB");
+    await ensurePassiveQuoteTreasurerOperational(contracts, timelockSigner, actors.treasurer);
 
     await (await pool.connect(actors.lp1).deposit({ value: 1n * WAD })).wait();
     await expectPoolEthInvariant(contracts, poolAddress, "before publishing");
@@ -314,6 +451,7 @@ describe("Passive futures pool lifecycle integration", function () {
     const actors = await loadActors(ethers);
     const timelockSigner = await impersonateTimelock(ethers, addresses.sethxTimelock);
     const { marketKey, pool, poolAddress } = await createMarketAndPool(contracts, timelockSigner, "PF-FILL");
+    await ensurePassiveQuoteTreasurerOperational(contracts, timelockSigner, actors.treasurer);
 
     const lpDeposit = 2n * WAD;
     await (await pool.connect(actors.lp1).deposit({ value: lpDeposit })).wait();
@@ -337,14 +475,16 @@ describe("Passive futures pool lifecycle integration", function () {
     await (
       await taker
         .connect(actors.bob)
-        .placeOrderFutures(await contracts.futuresOrderBook.getAddress(), marketKey, 0, INITIAL_PRICE, SIZE, 0, ETH)
+        .placeOrderFutures(await contracts.futuresOrderBook.getAddress(), marketKey, 0, INITIAL_PRICE, SIZE, 0, ETH, ethers.ZeroAddress)
     ).wait();
 
     const margin = initialMarginRequired(SIZE, INITIAL_PRICE);
-    const poolShort = await contracts.futuresContract.getPosition(poolAddress, marketKey, false);
-    const takerLong = await contracts.futuresContract.getPosition(takerAddress, marketKey, true);
-    expect(poolShort.isActive).to.equal(true);
-    expect(takerLong.isActive).to.equal(true);
+    const poolShort = await contracts.futuresContract.getPosition(poolAddress, marketKey);
+    const takerLong = await contracts.futuresContract.getPosition(takerAddress, marketKey);
+    expect(isOpenPosition(poolShort)).to.equal(true);
+    expect(poolShort.side).to.equal(PositionSide.Short);
+    expect(isOpenPosition(takerLong)).to.equal(true);
+    expect(takerLong.side).to.equal(PositionSide.Long);
     expect(poolShort.size).to.equal(SIZE);
     expect(takerLong.size).to.equal(SIZE);
     expect(poolShort.margin).to.equal(margin);
@@ -372,6 +512,7 @@ describe("Passive futures pool lifecycle integration", function () {
     const actors = await loadActors(ethers);
     const timelockSigner = await impersonateTimelock(ethers, addresses.sethxTimelock);
     const { marketKey, pool, poolAddress } = await createMarketAndPool(contracts, timelockSigner, "PF-CLOSE");
+    await ensurePassiveQuoteTreasurerOperational(contracts, timelockSigner, actors.treasurer);
 
     const lpDeposit = 2n * WAD;
     await (await pool.connect(actors.lp1).deposit({ value: lpDeposit })).wait();
@@ -395,11 +536,12 @@ describe("Passive futures pool lifecycle integration", function () {
     await (
       await taker
         .connect(actors.bob)
-        .placeOrderFutures(await contracts.futuresOrderBook.getAddress(), marketKey, 0, INITIAL_PRICE, SIZE, 0, ETH)
+        .placeOrderFutures(await contracts.futuresOrderBook.getAddress(), marketKey, 0, INITIAL_PRICE, SIZE, 0, ETH, ethers.ZeroAddress)
     ).wait();
 
-    const poolShortBeforeClose = await contracts.futuresContract.getPosition(poolAddress, marketKey, false);
-    expect(poolShortBeforeClose.isActive).to.equal(true);
+    const poolShortBeforeClose = await contracts.futuresContract.getPosition(poolAddress, marketKey);
+    expect(isOpenPosition(poolShortBeforeClose)).to.equal(true);
+    expect(poolShortBeforeClose.side).to.equal(PositionSide.Short);
     expect(poolShortBeforeClose.size).to.equal(SIZE);
 
     await publishThroughTreasurer(
@@ -450,11 +592,11 @@ describe("Passive futures pool lifecycle integration", function () {
     await (
       await taker
         .connect(actors.bob)
-        .placeOrderFutures(await contracts.futuresOrderBook.getAddress(), marketKey, 1, INITIAL_PRICE, SIZE, 0, ETH)
+        .placeOrderFutures(await contracts.futuresOrderBook.getAddress(), marketKey, 1, INITIAL_PRICE, SIZE, 0, ETH, ethers.ZeroAddress)
     ).wait();
 
-    const poolShortAfterClose = await contracts.futuresContract.getPosition(poolAddress, marketKey, false);
-    const takerLongAfterClose = await contracts.futuresContract.getPosition(takerAddress, marketKey, true);
+    const poolShortAfterClose = await contracts.futuresContract.getPosition(poolAddress, marketKey);
+    const takerLongAfterClose = await contracts.futuresContract.getPosition(takerAddress, marketKey);
     expect(poolShortAfterClose.size).to.equal(0n);
     expect(takerLongAfterClose.size).to.equal(0n);
   });

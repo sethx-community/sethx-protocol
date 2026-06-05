@@ -1,3 +1,5 @@
+import { safeDeployContract } from "./safe-deploy-contract.js";
+
 export async function deployGovernance(
   ethers: any,
   parameters: {
@@ -22,15 +24,14 @@ export async function deployGovernance(
   const proposalThreshold = parameters.governance.proposalThreshold;
   const quorumBps = BigInt(parameters.governance.quorumBps);
 
-  const sethxTimelock = await ethers.deployContract("SethxTimelock", [
+  const sethxTimelock = await safeDeployContract(ethers, "SethxTimelock", [
     parameters.governance.timelockDelaySeconds,
     [],
     [],
     deployerAddress,
   ]);
-  await sethxTimelock.waitForDeployment();
 
-  const sethxGovernor = await ethers.deployContract("SethxGovernor", [
+  const sethxGovernor = await safeDeployContract(ethers, "SethxGovernor", [
     deployment.addresses.sethxToken,
     await sethxTimelock.getAddress(),
     deployment.addresses.protocolTreasury,
@@ -39,7 +40,6 @@ export async function deployGovernance(
     proposalThreshold,
     quorumBps,
   ]);
-  await sethxGovernor.waitForDeployment();
 
   return {
     sethxTimelock,

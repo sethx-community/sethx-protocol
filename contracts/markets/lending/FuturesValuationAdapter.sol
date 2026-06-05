@@ -6,6 +6,8 @@ import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol"
 import { FuturesContract } from "../futures/FuturesContract.sol";
 import { SethxVault } from "../../vault/SethxVault.sol";
 
+import { FuturesTypes } from "../futures/FuturesTypes.sol";
+
 contract FuturesValuationAdapter is AccessControl {
     uint256 public constant WAD = 1e18;
     bytes32 public constant GOVERNOR_ROLE = keccak256("GOVERNOR_ROLE");
@@ -46,61 +48,30 @@ contract FuturesValuationAdapter is AccessControl {
     ) external view returns (FuturesValue[] memory values) {
         bytes32[] memory marketKeys = futures.getMarketKeys();
 
-        // worst case: one long + one short entry per market
-        values = new FuturesValue[](marketKeys.length * 2);
+        values = new FuturesValue[](marketKeys.length);
         uint256 n = 0;
 
         for (uint256 i = 0; i < marketKeys.length; i++) {
             bytes32 marketKey = marketKeys[i];
-            FuturesContract.MarketConfig memory m = futures.getMarket(marketKey);
+            FuturesTypes.MarketConfig memory m = futures.getMarket(marketKey);
 
             if (m.oracle == address(0)) continue;
 
-            uint256 pxEth;
+            FuturesTypes.Position memory p = futures.getPosition(account, marketKey);
 
-            pxEth = WAD;
+            if (
+                p.size > 0 &&
+                p.margin > 0 &&
+                (p.side == FuturesTypes.PositionSide.Long ||
+                    p.side == FuturesTypes.PositionSide.Short)
+            ) {
+                values[n] = FuturesValue({
+                    marginValueEth: _tokenAmountRawToEth(m.marginDecimals, p.margin, WAD),
+                    multiplier: _normalizeMultiplier(m.multiplier)
+                });
 
-            {
-                FuturesContract.Position memory longPos = futures.getPosition(
-                    account,
-                    marketKey,
-                    true
-                );
-
-                if (longPos.isActive && longPos.size > 0 && longPos.margin > 0) {
-                    values[n] = FuturesValue({
-                        marginValueEth: _tokenAmountRawToEth(
-                            m.marginDecimals,
-                            longPos.margin,
-                            pxEth
-                        ),
-                        multiplier: _normalizeMultiplier(m.multiplier)
-                    });
-                    unchecked {
-                        ++n;
-                    }
-                }
-            }
-
-            {
-                FuturesContract.Position memory shortPos = futures.getPosition(
-                    account,
-                    marketKey,
-                    false
-                );
-
-                if (shortPos.isActive && shortPos.size > 0 && shortPos.margin > 0) {
-                    values[n] = FuturesValue({
-                        marginValueEth: _tokenAmountRawToEth(
-                            m.marginDecimals,
-                            shortPos.margin,
-                            pxEth
-                        ),
-                        multiplier: _normalizeMultiplier(m.multiplier)
-                    });
-                    unchecked {
-                        ++n;
-                    }
+                unchecked {
+                    ++n;
                 }
             }
         }

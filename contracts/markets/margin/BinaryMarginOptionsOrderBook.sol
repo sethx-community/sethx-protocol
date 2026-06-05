@@ -8,26 +8,6 @@ import { BinaryMarginOptionContract } from "./BinaryMarginOptionContract.sol";
 import { FeeManager } from "../../oracle/FeeManager.sol";
 import { AccountRegistry } from "../../accounts/AccountRegistry.sol";
 
-/**
- * @notice Binary payout-notional orderbook.
- *
- * Quantity model:
- * - Orders trade `payoutAmount`, not contract size.
- * - Writer locks exactly `payoutAmount`.
- * - Buyer pays premium = payoutAmount * askPrice / 1e18.
- *
- * Fee rules:
- * - Only the premium payer pays fees. In this book, that is BUY_OPTION.
- * - Writer / seller side orders do not pay trading fees.
- * - Stored BUY_OPTION orders snapshot and lock fees at placement.
- * - Fixed fee is charged once per premium-payer order.
- * - Percentage fee is charged pro-rata by filled premium, with exact remainder on final fill.
- * - BUY_OPTION takers accepting SELL_OPTION / WRITE_OPTION orders pay fees in that accept tx.
- *
- * Legacy enum note:
- * - SELL_WRITER is kept for compatibility, but disabled here.
- * - To support trading existing writer exposure cleanly, add an explicit BUY_WRITER side.
- */
 contract BinaryMarginOptionsOrderBook is AccessControl {
     uint256 public constant WAD = 1e18;
 
@@ -68,6 +48,7 @@ contract BinaryMarginOptionsOrderBook is AccessControl {
     struct Order {
         uint256 orderId;
         address user;
+        address referrer;
         bytes32 marketKey;
         OrderIntent intent;
         uint256 payoutAmount; // remaining payout notional
@@ -112,7 +93,12 @@ contract BinaryMarginOptionsOrderBook is AccessControl {
     // Reservations for resting inventory orders
     mapping(bytes32 => mapping(address => uint256)) public reservedHolderPayout;
 
-    event OrderPlaced(uint256 indexed orderId, address indexed user, address indexed feeToken);
+    event OrderPlaced(
+        uint256 indexed orderId,
+        address indexed user,
+        address indexed referrer,
+        address feeToken
+    );
     event OrderMatched(
         uint256 indexed makerOrderId,
         uint256 indexed takerOrderId,
@@ -215,50 +201,9 @@ contract BinaryMarginOptionsOrderBook is AccessControl {
         uint256 payoutAmount,
         uint256 askPrice,
         uint256 expiry,
-        address feeToken
+        address feeToken,
+        address referrer
     ) external onlyAccount returns (uint256) {
-        return _placeOrder(marketKey, intentRaw, payoutAmount, askPrice, expiry, feeToken);
-    }
-
-    function placeOrderForMarket(
-        string calldata ticker,
-        BinaryMarginOptionContract.OptionType optionType,
-        address oracle,
-        uint256 strikePrice,
-        uint256 marketExpiry,
-        uint8 intentRaw,
-        uint256 payoutAmount,
-        uint256 askPrice,
-        uint256 expiry,
-        address feeToken
-    ) external onlyAccount returns (uint256) {
-        (bytes32 marketKey,,) = marginOptionContract.previewMarketKey(
-            optionType,
-            oracle,
-            strikePrice,
-            marketExpiry
-        );
-        BinaryMarginOptionContract.MarketConfig memory existing = marginOptionContract.getMarket(marketKey);
-        if (!existing.initialized) {
-            marketKey = marginOptionContract.createMarket(
-                ticker,
-                optionType,
-                oracle,
-                strikePrice,
-                marketExpiry
-            );
-        }
-        return _placeOrder(marketKey, intentRaw, payoutAmount, askPrice, expiry, feeToken);
-    }
-
-    function _placeOrder(
-        bytes32 marketKey,
-        uint8 intentRaw,
-        uint256 payoutAmount,
-        uint256 askPrice,
-        uint256 expiry,
-        address feeToken
-    ) internal returns (uint256) {
         if (payoutAmount == 0) revert InvalidAmount();
         if (askPrice == 0) revert InvalidPrice();
 
@@ -292,6 +237,7 @@ contract BinaryMarginOptionsOrderBook is AccessControl {
         Order storage o = orders[orderId];
         o.orderId = orderId;
         o.user = msg.sender;
+        o.referrer = referrer;
         o.marketKey = marketKey;
         o.intent = intent;
         o.payoutAmount = payoutAmount;
@@ -305,7 +251,7 @@ contract BinaryMarginOptionsOrderBook is AccessControl {
 
         marketOrderIds[marketKey].push(orderId);
 
-        emit OrderPlaced(orderId, msg.sender, feeToken);
+        emit OrderPlaced(orderId, msg.sender, referrer, feeToken);
 
         _attemptMatch(orderId);
 
@@ -318,18 +264,19 @@ contract BinaryMarginOptionsOrderBook is AccessControl {
         }
 
         return orderId;
-    
     }
 
     function acceptOrder(
         uint256 makerOrderId,
         uint256 payoutAmount,
-        address feeToken
+        address feeToken,
+        address referrer
     ) external onlyAccount {
         if (payoutAmount == 0) revert InvalidAmount();
 
         Order storage maker = orders[makerOrderId];
         if (!_isOrderOpen(maker)) revert OrderDoesNotExist();
+        if (!isOrderInBook[makerOrderId]) revert OrderNotActive();
 
         (
             bool initialized,
@@ -354,6 +301,7 @@ contract BinaryMarginOptionsOrderBook is AccessControl {
         Order memory taker = Order({
             orderId: takerOrderId,
             user: msg.sender,
+            referrer: referrer,
             marketKey: maker.marketKey,
             intent: takerIntent,
             payoutAmount: payoutAmount,
@@ -386,6 +334,9 @@ contract BinaryMarginOptionsOrderBook is AccessControl {
         if (maker.payoutAmount == 0) {
             maker.active = false;
             _clearRestingOrderCount(makerOrderId);
+            if (!_removeMarketOrderId(maker.marketKey, makerOrderId)) {
+                revert OrderNotActive();
+            }
         }
 
         emit OrderMatched(
@@ -415,6 +366,9 @@ contract BinaryMarginOptionsOrderBook is AccessControl {
         _releaseForOrder(o, paymentToken);
 
         _clearRestingOrderCount(orderId);
+        if (!_removeMarketOrderId(o.marketKey, orderId)) {
+            revert OrderNotActive();
+        }
 
         o.active = false;
         o.payoutAmount = 0;
@@ -428,14 +382,30 @@ contract BinaryMarginOptionsOrderBook is AccessControl {
 
         uint256[] storage ids = marketOrderIds[taker.marketKey];
 
-        for (uint256 i = 0; i < ids.length && taker.payoutAmount > 0; i++) {
+        for (uint256 i = 0; i < ids.length && taker.payoutAmount > 0; ) {
             uint256 makerId = ids[i];
-            if (makerId == takerOrderId) continue;
+
+            if (makerId == takerOrderId) {
+                i++;
+                continue;
+            }
 
             Order storage maker = orders[makerId];
-            if (!_isOrderOpen(maker)) continue;
-            if (!_canMatch(maker.intent, taker.intent)) continue;
-            if (maker.askPrice != taker.askPrice) continue;
+
+            if (!_isOrderOpen(maker)) {
+                _removeMarketOrderIdAt(taker.marketKey, i);
+                continue;
+            }
+
+            if (!_canMatch(maker.intent, taker.intent)) {
+                i++;
+                continue;
+            }
+
+            if (maker.askPrice != taker.askPrice) {
+                i++;
+                continue;
+            }
 
             uint256 fill =
                 maker.payoutAmount < taker.payoutAmount ? maker.payoutAmount : taker.payoutAmount;
@@ -449,23 +419,38 @@ contract BinaryMarginOptionsOrderBook is AccessControl {
                 paymentToken
             );
 
+            uint256 emitMakerId = maker.orderId;
+            uint256 emitTakerId = taker.orderId;
+            address emitTakerUser = taker.user;
+
             maker.payoutAmount -= fill;
             taker.payoutAmount -= fill;
 
-            if (maker.payoutAmount == 0) {
+            bool makerFilled = maker.payoutAmount == 0;
+
+            if (makerFilled) {
+                uint256 filledMakerOrderId = maker.orderId;
+
                 maker.active = false;
-                _clearRestingOrderCount(maker.orderId);
+                _clearRestingOrderCount(filledMakerOrderId);
+                _removeMarketOrderIdAt(taker.marketKey, i);
+            } else {
+                i++;
             }
 
             if (taker.payoutAmount == 0) {
+                uint256 filledTakerOrderId = taker.orderId;
+                bytes32 takerMarketKey = taker.marketKey;
+
                 taker.active = false;
-                _clearRestingOrderCount(taker.orderId);
+                _clearRestingOrderCount(filledTakerOrderId);
+                _removeMarketOrderId(takerMarketKey, filledTakerOrderId);
             }
 
             emit OrderMatched(
-                maker.orderId,
-                taker.orderId,
-                taker.user,
+                emitMakerId,
+                emitTakerId,
+                emitTakerUser,
                 fill,
                 premiumAmount,
                 totalFeeCharged
@@ -626,7 +611,8 @@ contract BinaryMarginOptionsOrderBook is AccessControl {
                 taker.user,
                 takerFeeToken,
                 paymentToken,
-                premiumAmount
+                premiumAmount,
+                taker.referrer
             );
 
             _transferTokenOrETH(
@@ -651,7 +637,8 @@ contract BinaryMarginOptionsOrderBook is AccessControl {
                 taker.user,
                 takerFeeToken,
                 paymentToken,
-                premiumAmount
+                premiumAmount,
+                taker.referrer
             );
 
             _transferTokenOrETH(
@@ -857,7 +844,8 @@ contract BinaryMarginOptionsOrderBook is AccessControl {
         address premiumPayer,
         address feeToken,
         address paymentToken,
-        uint256 premiumAmount
+        uint256 premiumAmount,
+        address referrer
     ) internal returns (uint256 chargedThisStep) {
         FeeManager.FeeOutput memory f = feeManager.getFeeForAccount(
             feeToken,
@@ -874,7 +862,7 @@ contract BinaryMarginOptionsOrderBook is AccessControl {
                 f.fixedToken,
                 f.fixedAmount,
                 "binary_option_trade_fee_fixed",
-                true
+                referrer
             );
             chargedThisStep += f.fixedAmount;
         }
@@ -885,7 +873,7 @@ contract BinaryMarginOptionsOrderBook is AccessControl {
                 f.percentageToken,
                 f.percentageAmount,
                 "binary_option_trade_fee_pct",
-                false
+                referrer
             );
             chargedThisStep += f.percentageAmount;
         }
@@ -905,7 +893,7 @@ contract BinaryMarginOptionsOrderBook is AccessControl {
                     feeOrder.fixedFeeToken,
                     feeOrder.fixedFeeTotal,
                     "binary_option_trade_fee_fixed",
-                    true
+                    feeOrder.referrer
                 );
                 chargedThisStep += feeOrder.fixedFeeTotal;
             }
@@ -925,7 +913,7 @@ contract BinaryMarginOptionsOrderBook is AccessControl {
                     feeOrder.pctFeeToken,
                     remainder,
                     "binary_option_trade_fee_pct",
-                    false
+                    feeOrder.referrer
                 );
                 feeOrder.pctFeeCharged = feeOrder.pctFeeTotal;
                 chargedThisStep += remainder;
@@ -943,11 +931,40 @@ contract BinaryMarginOptionsOrderBook is AccessControl {
                 feeOrder.pctFeeToken,
                 delta,
                 "binary_option_trade_fee_pct",
-                false
+                feeOrder.referrer
             );
             feeOrder.pctFeeCharged = pctTargetAfter;
             chargedThisStep += delta;
         }
+    }
+
+    function _removeMarketOrderIdAt(bytes32 marketKey, uint256 index) internal {
+        uint256[] storage ids = marketOrderIds[marketKey];
+
+        if (index >= ids.length) return;
+
+        for (uint256 i = index; i + 1 < ids.length; i++) {
+            ids[i] = ids[i + 1];
+        }
+
+        ids.pop();
+    }
+
+    function _removeMarketOrderId(bytes32 marketKey, uint256 orderId) internal returns (bool) {
+        uint256[] storage ids = marketOrderIds[marketKey];
+
+        for (uint256 i = 0; i < ids.length; i++) {
+            if (ids[i] == orderId) {
+                for (uint256 j = i; j + 1 < ids.length; j++) {
+                    ids[j] = ids[j + 1];
+                }
+
+                ids.pop();
+                return true;
+            }
+        }
+
+        return false;
     }
 
     function _checkAndRecordOrderLimit(address user, bytes32 marketKey) internal {

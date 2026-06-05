@@ -236,7 +236,7 @@ async function createMarginMarket(contracts: any, governance: any, label: string
   await (
     await contracts.marginOptionContract
       .connect(governance)
-      .createMarket(label, MarginOptionType.Call, oracleAddress, 2n * 10n ** 8n, expiry, 10_000n)
+      .createMarket(MarginOptionType.Call, oracleAddress, 2n * 10n ** 8n, expiry, 10_000n)
   ).wait();
   const count = await contracts.marginOptionContract.marketCount();
   return { marketKey: await contracts.marginOptionContract.marketKeyAt(count - 1n), oracle, expiry };
@@ -254,7 +254,7 @@ async function createBinaryMarket(contracts: any, governance: any, label: string
   await (
     await contracts.binaryMarginOptionContract
       .connect(governance)
-      .createMarket(label, MarginOptionType.Call, oracleAddress, 2n * 10n ** 8n, expiry)
+      .createMarket(MarginOptionType.Call, oracleAddress, 2n * 10n ** 8n, expiry)
   ).wait();
   const count = await contracts.binaryMarginOptionContract.marketCount();
   return { marketKey: await contracts.binaryMarginOptionContract.marketKeyAt(count - 1n), oracle, expiry };
@@ -306,15 +306,15 @@ describe("Orderbook depth regression - multi-maker and multi-taker integration",
       await (
         await maker
           .connect(owner)
-          .placeOrderTokenSpot(await contracts.tokenSpotOrderBook.getAddress(), ETH, base, quote, 1, price, chunk, 0)
+          .placeOrderTokenSpot(await contracts.tokenSpotOrderBook.getAddress(), ETH, base, quote, 1, price, chunk, 0, ethers.ZeroAddress)
       ).wait();
     }
     await depositToken(assets.tokenB, taker, actors.dave, quoteFor(chunk * 3n, price) + ethers.parseEther("5"));
     await depositEth(taker, actors.dave, ethers.parseEther("1"));
     const firstOrder = (await contracts.tokenSpotOrderBook.nextOrderId()) - 3n;
-    await (await taker.connect(actors.dave).acceptOrderTokenSpot(await contracts.tokenSpotOrderBook.getAddress(), firstOrder, chunk, ETH)).wait();
-    await (await taker.connect(actors.dave).acceptOrderTokenSpot(await contracts.tokenSpotOrderBook.getAddress(), firstOrder + 1n, chunk, ETH)).wait();
-    await (await taker.connect(actors.dave).acceptOrderTokenSpot(await contracts.tokenSpotOrderBook.getAddress(), firstOrder + 2n, chunk, ETH)).wait();
+    await (await taker.connect(actors.dave).acceptOrderTokenSpot(await contracts.tokenSpotOrderBook.getAddress(), firstOrder, chunk, ETH, ethers.ZeroAddress)).wait();
+    await (await taker.connect(actors.dave).acceptOrderTokenSpot(await contracts.tokenSpotOrderBook.getAddress(), firstOrder + 1n, chunk, ETH, ethers.ZeroAddress)).wait();
+    await (await taker.connect(actors.dave).acceptOrderTokenSpot(await contracts.tokenSpotOrderBook.getAddress(), firstOrder + 2n, chunk, ETH, ethers.ZeroAddress)).wait();
     expect(await contracts.vault.erc20Balances(await taker.getAddress(), base)).to.equal(chunk * 3n);
 
     await depositToken(assets.tokenA, makerSingle, actors.alice, chunk * 3n + ethers.parseEther("1"));
@@ -323,7 +323,7 @@ describe("Orderbook depth regression - multi-maker and multi-taker integration",
     await (
       await makerSingle
         .connect(actors.alice)
-        .placeOrderTokenSpot(await contracts.tokenSpotOrderBook.getAddress(), ETH, base, quote, 1, price, chunk * 3n, 0)
+        .placeOrderTokenSpot(await contracts.tokenSpotOrderBook.getAddress(), ETH, base, quote, 1, price, chunk * 3n, 0, ethers.ZeroAddress)
     ).wait();
     for (const [partialTaker, owner] of [
       [takerA, actors.bob],
@@ -332,7 +332,7 @@ describe("Orderbook depth regression - multi-maker and multi-taker integration",
     ] as any[]) {
       await depositToken(assets.tokenB, partialTaker, owner, quoteFor(chunk, price) + ethers.parseEther("2"));
       await depositEth(partialTaker, owner, ethers.parseEther("1"));
-      await (await partialTaker.connect(owner).acceptOrderTokenSpot(await contracts.tokenSpotOrderBook.getAddress(), orderId, chunk, ETH)).wait();
+      await (await partialTaker.connect(owner).acceptOrderTokenSpot(await contracts.tokenSpotOrderBook.getAddress(), orderId, chunk, ETH, ethers.ZeroAddress)).wait();
     }
     expect((await contracts.tokenSpotOrderBook.getOrder(orderId)).user).to.equal(ethers.ZeroAddress);
   });
@@ -370,13 +370,13 @@ describe("Orderbook depth regression - multi-maker and multi-taker integration",
     ] as any[]) {
       const tokenId = await mintNftTo(assets.nft, owner);
       await depositNft(assets.nft, seller, owner, tokenId);
-      await (await seller.connect(owner).placeOrderNFTSpot(await contracts.nftSpotOrderBook.getAddress(), ETH, nft, tokenId, quote, 1, price, 0)).wait();
+      await (await seller.connect(owner).placeOrderNFTSpot(await contracts.nftSpotOrderBook.getAddress(), ETH, nft, tokenId, quote, 1, price, 0, ethers.ZeroAddress)).wait();
     }
     await depositToken(assets.tokenB, buyer, actors.dave, price * 3n + ethers.parseEther("5"));
     await depositEth(buyer, actors.dave, ethers.parseEther("1"));
     const firstAsk = (await contracts.nftSpotOrderBook.nextOrderId()) - 3n;
     for (let i = 0n; i < 3n; i++) {
-      await (await buyer.connect(actors.dave).acceptOrderNFTSpot(await contracts.nftSpotOrderBook.getAddress(), firstAsk + i, ETH)).wait();
+      await (await buyer.connect(actors.dave).acceptOrderNFTSpot(await contracts.nftSpotOrderBook.getAddress(), firstAsk + i, ETH, ethers.ZeroAddress)).wait();
     }
     expect(await contracts.vault.erc721BalanceCount(await buyer.getAddress(), nft)).to.equal(3n);
 
@@ -389,10 +389,10 @@ describe("Orderbook depth regression - multi-maker and multi-taker integration",
     ] as any[]) {
       await depositToken(assets.tokenB, bidder, owner, price + ethers.parseEther("2"));
       await depositEth(bidder, owner, ethers.parseEther("1"));
-      await (await bidder.connect(owner).placeOrderNFTSpot(await contracts.nftSpotOrderBook.getAddress(), ETH, nft, aliceBidTokenId, quote, 0, price, 0)).wait();
+      await (await bidder.connect(owner).placeOrderNFTSpot(await contracts.nftSpotOrderBook.getAddress(), ETH, nft, aliceBidTokenId, quote, 0, price, 0, ethers.ZeroAddress)).wait();
     }
     const firstBid = (await contracts.nftSpotOrderBook.nextOrderId()) - 3n;
-    await (await sellerBid.connect(actors.alice).acceptOrderNFTSpot(await contracts.nftSpotOrderBook.getAddress(), firstBid, ETH)).wait();
+    await (await sellerBid.connect(actors.alice).acceptOrderNFTSpot(await contracts.nftSpotOrderBook.getAddress(), firstBid, ETH, ethers.ZeroAddress)).wait();
     expect(await contracts.vault.erc721Owned(await bidderA.getAddress(), nft, aliceBidTokenId)).to.equal(true);
   });
 
@@ -428,18 +428,18 @@ describe("Orderbook depth regression - multi-maker and multi-taker integration",
     for (const [writer, owner] of [[optW1, actors.alice], [optW2, actors.bob], [optW3, actors.carol]] as any[]) {
       await depositToken(assets.tokenA, writer, owner, optionSize);
       const orderId = await contracts.optionsOrderBook.nextOrderId();
-      await (await writer.connect(owner).placeOrderOption(await contracts.optionsOrderBook.getAddress(), OptionType.Call, asset, ETH, strike, optionExpiry, await orderExpiryBefore(optionExpiry), ETH, OptionIntent.WriteOption, optionSize, premiumPerUnit)).wait();
+      await (await writer.connect(owner).placeOrderOption(await contracts.optionsOrderBook.getAddress(), OptionType.Call, asset, ETH, strike, optionExpiry, await orderExpiryBefore(optionExpiry), ETH, OptionIntent.WriteOption, optionSize, premiumPerUnit, ethers.ZeroAddress)).wait();
       await depositEth(optHolder, actors.dave, premiumFor(optionSize, premiumPerUnit) + ethers.parseEther("1"));
-      await (await optHolder.connect(actors.dave).acceptOrderOption(await contracts.optionsOrderBook.getAddress(), orderId, optionSize, ETH)).wait();
+      await (await optHolder.connect(actors.dave).acceptOrderOption(await contracts.optionsOrderBook.getAddress(), orderId, optionSize, ETH, ethers.ZeroAddress)).wait();
     }
     expect(await contracts.optionContract.marketOpenInterest(await contracts.optionContract.computeMarketKey(OptionType.Call, asset, ETH, await contracts.optionContract.normalizeStrike(strike), optionExpiry))).to.equal(optionSize * 3n);
 
     await depositToken(assets.tokenA, optWBig, actors.alice, optionSize * 3n);
     const bigOptionOrder = await contracts.optionsOrderBook.nextOrderId();
-    await (await optWBig.connect(actors.alice).placeOrderOption(await contracts.optionsOrderBook.getAddress(), OptionType.Call, asset, ETH, strike, optionExpiry, await orderExpiryBefore(optionExpiry), ETH, OptionIntent.WriteOption, optionSize * 3n, premiumPerUnit)).wait();
+    await (await optWBig.connect(actors.alice).placeOrderOption(await contracts.optionsOrderBook.getAddress(), OptionType.Call, asset, ETH, strike, optionExpiry, await orderExpiryBefore(optionExpiry), ETH, OptionIntent.WriteOption, optionSize * 3n, premiumPerUnit, ethers.ZeroAddress)).wait();
     for (const [holder, owner] of [[optH1, actors.bob], [optH2, actors.carol], [optH3, actors.lp1]] as any[]) {
       await depositEth(holder, owner, premiumFor(optionSize, premiumPerUnit) + ethers.parseEther("1"));
-      await (await holder.connect(owner).acceptOrderOption(await contracts.optionsOrderBook.getAddress(), bigOptionOrder, optionSize, ETH)).wait();
+      await (await holder.connect(owner).acceptOrderOption(await contracts.optionsOrderBook.getAddress(), bigOptionOrder, optionSize, ETH, ethers.ZeroAddress)).wait();
     }
     const consumedOptionOrder = await contracts.optionsOrderBook.getOrder(bigOptionOrder);
     expect(consumedOptionOrder.user).to.equal(ethers.ZeroAddress);
@@ -453,15 +453,15 @@ describe("Orderbook depth regression - multi-maker and multi-taker integration",
     await depositEth(mWriter, actors.alice, ethers.parseEther("20"));
     await depositEth(mHolder, actors.bob, ethers.parseEther("10"));
     const marginOrder = await contracts.marginOptionsOrderBook.nextOrderId();
-    await (await mWriter.connect(actors.alice).placeOrderMarginOption(await contracts.marginOptionsOrderBook.getAddress(), marginKey, MarginIntent.WriteOption, marginSize, marginPrice, await orderExpiryBefore(marginExpiry), ETH)).wait();
-    await (await mHolder.connect(actors.bob).acceptOrderMarginOption(await contracts.marginOptionsOrderBook.getAddress(), marginOrder, marginSize, ETH)).wait();
+    await (await mWriter.connect(actors.alice).placeOrderMarginOption(await contracts.marginOptionsOrderBook.getAddress(), marginKey, MarginIntent.WriteOption, marginSize, marginPrice, await orderExpiryBefore(marginExpiry), ETH, ethers.ZeroAddress)).wait();
+    await (await mHolder.connect(actors.bob).acceptOrderMarginOption(await contracts.marginOptionsOrderBook.getAddress(), marginOrder, marginSize, ETH, ethers.ZeroAddress)).wait();
     expect(await contracts.marginOptionContract.marketOpenInterest(marginKey)).to.equal(marginSize);
 
     await depositEth(bWriter, actors.carol, ethers.parseEther("20"));
     await depositEth(bHolder, actors.dave, ethers.parseEther("10"));
     const binaryOrder = await contracts.binaryMarginOptionsOrderBook.nextOrderId();
-    await (await bWriter.connect(actors.carol).placeOrderBinaryMarginOption(await contracts.binaryMarginOptionsOrderBook.getAddress(), binaryKey, BinaryIntent.WriteOption, marginSize, marginPrice, await orderExpiryBefore(binaryExpiry), ETH)).wait();
-    await (await bHolder.connect(actors.dave).acceptOrderBinaryMarginOption(await contracts.binaryMarginOptionsOrderBook.getAddress(), binaryOrder, marginSize, ETH)).wait();
+    await (await bWriter.connect(actors.carol).placeOrderBinaryMarginOption(await contracts.binaryMarginOptionsOrderBook.getAddress(), binaryKey, BinaryIntent.WriteOption, marginSize, marginPrice, await orderExpiryBefore(binaryExpiry), ETH, ethers.ZeroAddress)).wait();
+    await (await bHolder.connect(actors.dave).acceptOrderBinaryMarginOption(await contracts.binaryMarginOptionsOrderBook.getAddress(), binaryOrder, marginSize, ETH, ethers.ZeroAddress)).wait();
     expect(await contracts.binaryMarginOptionContract.marketOpenInterest(binaryKey)).to.equal(marginSize);
 
     const { marketKey: futuresKey } = await createFuturesMarket(contracts, governance, `DEPTH-FUT-${await latestTimestamp()}`);
@@ -477,21 +477,21 @@ describe("Orderbook depth regression - multi-maker and multi-taker integration",
     ]);
     for (const [shortMaker, owner] of [[shortA, actors.alice], [shortB, actors.bob], [shortC, actors.carol]] as any[]) {
       await depositEth(shortMaker, owner, marginForFutures(FUTURES_SIZE, FUTURES_PRICE) + ethers.parseEther("1"));
-      await (await shortMaker.connect(owner).placeOrderFutures(await contracts.futuresOrderBook.getAddress(), futuresKey, 1, FUTURES_PRICE, FUTURES_SIZE, 0, ETH)).wait();
+      await (await shortMaker.connect(owner).placeOrderFutures(await contracts.futuresOrderBook.getAddress(), futuresKey, 1, FUTURES_PRICE, FUTURES_SIZE, 0, ETH, ethers.ZeroAddress)).wait();
     }
     await depositEth(longTaker, actors.dave, marginForFutures(FUTURES_SIZE * 3n, FUTURES_PRICE) + ethers.parseEther("2"));
     const firstFuture = (await contracts.futuresOrderBook.nextOrderId()) - 3n;
     for (let i = 0n; i < 3n; i++) {
-      await (await longTaker.connect(actors.dave).placeOrderFutures(await contracts.futuresOrderBook.getAddress(), futuresKey, 0, FUTURES_PRICE, FUTURES_SIZE, 0, ETH)).wait();
+      await (await longTaker.connect(actors.dave).placeOrderFutures(await contracts.futuresOrderBook.getAddress(), futuresKey, 0, FUTURES_PRICE, FUTURES_SIZE, 0, ETH, ethers.ZeroAddress)).wait();
     }
-    expect((await contracts.futuresContract.getPosition(await longTaker.getAddress(), futuresKey, true)).size).to.equal(FUTURES_SIZE * 3n);
+    expect((await contracts.futuresContract.getPosition(await longTaker.getAddress(), futuresKey)).size).to.equal(FUTURES_SIZE * 3n);
 
     await depositEth(shortBig, actors.alice, marginForFutures(FUTURES_SIZE * 3n, FUTURES_PRICE) + ethers.parseEther("2"));
     const bigShortOrder = await contracts.futuresOrderBook.nextOrderId();
-    await (await shortBig.connect(actors.alice).placeOrderFutures(await contracts.futuresOrderBook.getAddress(), futuresKey, 1, FUTURES_PRICE, FUTURES_SIZE * 3n, 0, ETH)).wait();
+    await (await shortBig.connect(actors.alice).placeOrderFutures(await contracts.futuresOrderBook.getAddress(), futuresKey, 1, FUTURES_PRICE, FUTURES_SIZE * 3n, 0, ETH, ethers.ZeroAddress)).wait();
     for (const [long, owner] of [[longA, actors.bob], [longB, actors.carol], [longC, actors.lp1]] as any[]) {
       await depositEth(long, owner, marginForFutures(FUTURES_SIZE, FUTURES_PRICE) + ethers.parseEther("1"));
-      await (await long.connect(owner).placeOrderFutures(await contracts.futuresOrderBook.getAddress(), futuresKey, 0, FUTURES_PRICE, FUTURES_SIZE, 0, ETH)).wait();
+      await (await long.connect(owner).placeOrderFutures(await contracts.futuresOrderBook.getAddress(), futuresKey, 0, FUTURES_PRICE, FUTURES_SIZE, 0, ETH, ethers.ZeroAddress)).wait();
     }
     expect((await contracts.futuresOrderBook.ordersById(bigShortOrder)).amount).to.equal(0n);
 

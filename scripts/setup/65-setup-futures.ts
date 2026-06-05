@@ -5,13 +5,11 @@ export async function setupFutures(
       sethxVault: string;
       priceManager: string;
       futuresContract: string;
+      futuresPositionStore: string;
       futuresOrderBook: string;
     };
   },
 ) {
-  const [deployer] = await ethers.getSigners();
-  const deployerAddress = await deployer.getAddress();
-
   const vault = await ethers.getContractAt(
     "SethxVault",
     deployment.addresses.sethxVault,
@@ -22,39 +20,42 @@ export async function setupFutures(
     deployment.addresses.futuresContract,
   );
 
+  const futuresPositionStore = await ethers.getContractAt(
+    "FuturesPositionStore",
+    deployment.addresses.futuresPositionStore,
+  );
+
   const futuresOrderBook = await ethers.getContractAt(
     "FuturesOrderBook",
     deployment.addresses.futuresOrderBook,
   );
 
-  if ((await futuresContract.priceManager()) !== deployment.addresses.priceManager) {
+  if (
+    (await futuresContract.priceManager()) !== deployment.addresses.priceManager
+  ) {
     const tx = await futuresContract.setPriceManager(
       deployment.addresses.priceManager,
     );
     await tx.wait();
   }
 
+  if (
+    (await futuresContract.positionStore()) !==
+    deployment.addresses.futuresPositionStore
+  ) {
+    const tx = await futuresContract.setPositionStore(
+      deployment.addresses.futuresPositionStore,
+    );
+    await tx.wait();
+  }
+
   const vaultOrderbookRole = await vault.ORDERBOOK_ROLE();
-  const contractOrderbookRole = await futuresContract.ORDERBOOK_ROLE();
-  const marketManagerRole = await futuresContract.MARKET_MANAGER_ROLE();
-  const settlementManagerRole =
-    await futuresContract.SETTLEMENT_MANAGER_ROLE();
-  const orderBookSettlementManagerRole =
-    await futuresOrderBook.SETTLEMENT_MANAGER_ROLE();
+  const vaultSettlementRole = await vault.SETTLEMENT_ROLE();
+  const futuresOrderbookRole = await futuresContract.ORDERBOOK_ROLE();
+  const futuresEngineRole = await futuresPositionStore.FUTURES_ENGINE_ROLE();
 
-  if (
-    !(await vault.hasRole(
-      vaultOrderbookRole,
-      deployment.addresses.futuresContract,
-    ))
-  ) {
-    const tx = await vault.grantRole(
-      vaultOrderbookRole,
-      deployment.addresses.futuresContract,
-    );
-    await tx.wait();
-  }
-
+  // FuturesOrderBook needs vault ORDERBOOK_ROLE:
+  // lockETH, unlockETH, transferETH/transferToken, chargeFee.
   if (
     !(await vault.hasRole(
       vaultOrderbookRole,
@@ -68,46 +69,63 @@ export async function setupFutures(
     await tx.wait();
   }
 
+  // FuturesContract needs vault SETTLEMENT_ROLE:
+  // collectToSettlement, payFromFuturesSettlementLocked,
+  // liquidation rewards / settlement-pool accounting.
+  if (
+    !(await vault.hasRole(
+      vaultSettlementRole,
+      deployment.addresses.futuresContract,
+    ))
+  ) {
+    const tx = await vault.grantRole(
+      vaultSettlementRole,
+      deployment.addresses.futuresContract,
+    );
+    await tx.wait();
+  }
+
+  // Optional but safe:
+  // FuturesContract also calls vault.lockETH/unlockETH/transferETH in user-facing
+  // margin and liquidation flows. SETTLEMENT_ROLE already permits these through
+  // onlyOrderbookOrSettlement, but keeping ORDERBOOK_ROLE is not harmful.
+  if (
+    !(await vault.hasRole(
+      vaultOrderbookRole,
+      deployment.addresses.futuresContract,
+    ))
+  ) {
+    const tx = await vault.grantRole(
+      vaultOrderbookRole,
+      deployment.addresses.futuresContract,
+    );
+    await tx.wait();
+  }
+
+  // FuturesOrderBook is allowed to mutate futures positions.
   if (
     !(await futuresContract.hasRole(
-      contractOrderbookRole,
+      futuresOrderbookRole,
       deployment.addresses.futuresOrderBook,
     ))
   ) {
     const tx = await futuresContract.grantRole(
-      contractOrderbookRole,
+      futuresOrderbookRole,
       deployment.addresses.futuresOrderBook,
     );
     await tx.wait();
   }
 
-  if (!(await futuresContract.hasRole(marketManagerRole, deployerAddress))) {
-    const tx = await futuresContract.grantRole(
-      marketManagerRole,
-      deployerAddress,
-    );
-    await tx.wait();
-  }
-
+  // FuturesContract is the only engine allowed to mutate FuturesPositionStore.
   if (
-    !(await futuresContract.hasRole(settlementManagerRole, deployerAddress))
-  ) {
-    const tx = await futuresContract.grantRole(
-      settlementManagerRole,
-      deployerAddress,
-    );
-    await tx.wait();
-  }
-
-  if (
-    !(await futuresOrderBook.hasRole(
-      orderBookSettlementManagerRole,
-      deployerAddress,
+    !(await futuresPositionStore.hasRole(
+      futuresEngineRole,
+      deployment.addresses.futuresContract,
     ))
   ) {
-    const tx = await futuresOrderBook.grantRole(
-      orderBookSettlementManagerRole,
-      deployerAddress,
+    const tx = await futuresPositionStore.grantRole(
+      futuresEngineRole,
+      deployment.addresses.futuresContract,
     );
     await tx.wait();
   }
@@ -116,14 +134,16 @@ export async function setupFutures(
     roles: {
       futuresContract: {
         priceManager: true,
+        positionStore: true,
+        vaultSettlementRole: true,
         vaultOrderbookRole: true,
-        deployerMarketManagerRole: true,
-        deployerSettlementManagerRole: true,
+      },
+      futuresPositionStore: {
+        futuresContractEngineRole: true,
       },
       futuresOrderBook: {
         vaultOrderbookRole: true,
         futuresContractOrderbookRole: true,
-        deployerSettlementManagerRole: true,
       },
     },
   };

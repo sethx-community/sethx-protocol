@@ -103,20 +103,6 @@ export async function setupAccountFactories(
     await tx.wait();
   }
 
-  const RECOVERY_MANAGER_ROLE = await lendingContract.RECOVERY_MANAGER_ROLE();
-  if (
-    !(await lendingContract.hasRole(
-      RECOVERY_MANAGER_ROLE,
-      deployment.addresses.liquidationEngine,
-    ))
-  ) {
-    const tx = await lendingContract.grantRole(
-      RECOVERY_MANAGER_ROLE,
-      deployment.addresses.liquidationEngine,
-    );
-    await tx.wait();
-  }
-
   const LOSS_MANAGER_ROLE = await lendingContract.LOSS_MANAGER_ROLE();
   if (
     !(await lendingContract.hasRole(
@@ -200,9 +186,11 @@ export async function setupAccountFactories(
   const liquidationParams = INITIAL_PROTOCOL_PARAMETERS.liquidation;
   const config = await liquidationEngine.auctionConfig();
   const configNeedsUpdate =
-    config.premiumPhaseDuration !== BigInt(liquidationParams.premiumPhaseDuration) ||
+    config.premiumPhaseDuration !==
+      BigInt(liquidationParams.premiumPhaseDuration) ||
     config.parPhaseDuration !== BigInt(liquidationParams.parPhaseDuration) ||
-    config.discountPhaseDuration !== BigInt(liquidationParams.discountPhaseDuration) ||
+    config.discountPhaseDuration !==
+      BigInt(liquidationParams.discountPhaseDuration) ||
     config.startPriceBps !== BigInt(liquidationParams.startPriceBps) ||
     config.parPriceBps !== BigInt(liquidationParams.parPriceBps) ||
     config.endPriceBps !== BigInt(liquidationParams.endPriceBps);

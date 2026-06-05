@@ -5,36 +5,15 @@ import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol"
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import { AccountRegistry } from "../accounts/AccountRegistry.sol";
+import { FuturesTypes } from "../markets/futures/FuturesTypes.sol";
 
 interface IFuturesPoolView {
-    struct MarketConfig {
-        string ticker;
-        address oracle;
-        uint8 oraclePriceDecimals;
-        uint8 marginDecimals;
-        uint256 initialMarginBps;
-        uint256 maintenanceMarginBps;
-        uint256 multiplier;
-        uint256 lastSettlementPrice;
-        uint256 lastSettlementBlock;
-        uint256 minMarginPerUnitLongNorm;
-        uint256 minMarginPerUnitShortNorm;
-    }
-
-    struct Position {
-        uint256 size;
-        uint256 margin;
-        uint256 marginPerUnitNorm;
-        bool isActive;
-    }
-
-    function getMarket(bytes32 marketKey) external view returns (MarketConfig memory);
+    function getMarket(bytes32 marketKey) external view returns (FuturesTypes.MarketConfig memory);
 
     function getPosition(
         address user,
-        bytes32 marketKey,
-        bool isLong
-    ) external view returns (Position memory);
+        bytes32 marketKey
+    ) external view returns (FuturesTypes.Position memory);
 }
 
 interface ISethxVaultPoolView {
@@ -136,7 +115,7 @@ contract PassiveLiquidityPool is AccessControl, ReentrancyGuard {
         accountRegistry = AccountRegistry(accountRegistry_);
         marketKey = marketKey_;
 
-        IFuturesPoolView.MarketConfig memory m = futures.getMarket(marketKey_);
+        FuturesTypes.MarketConfig memory m = futures.getMarket(marketKey_);
         if (m.oracle == address(0)) revert UnknownMarket();
 
         marketTicker = m.ticker;
@@ -307,17 +286,7 @@ contract PassiveLiquidityPool is AccessControl, ReentrancyGuard {
     }
 
     function getSnapshot() external view returns (PoolSnapshot memory snap) {
-        IFuturesPoolView.Position memory longPos = futures.getPosition(
-            address(this),
-            marketKey,
-            true
-        );
-
-        IFuturesPoolView.Position memory shortPos = futures.getPosition(
-            address(this),
-            marketKey,
-            false
-        );
+        FuturesTypes.Position memory p = futures.getPosition(address(this), marketKey);
 
         ISethxVaultPoolView.EthBalancesView memory ethView = vault.getEthBalances(address(this));
 
@@ -328,10 +297,15 @@ contract PassiveLiquidityPool is AccessControl, ReentrancyGuard {
         snap.totalEthBalance = ethView.freeEth + ethView.reservedOrderEth;
         snap.lockedEthBalance = ethView.reservedOrderEth;
         snap.freeEthBalance = ethView.freeEth;
-        snap.longSize = longPos.size;
-        snap.longMargin = longPos.margin;
-        snap.shortSize = shortPos.size;
-        snap.shortMargin = shortPos.margin;
+
+        if (p.side == FuturesTypes.PositionSide.Long) {
+            snap.longSize = p.size;
+            snap.longMargin = p.margin;
+        } else if (p.side == FuturesTypes.PositionSide.Short) {
+            snap.shortSize = p.size;
+            snap.shortMargin = p.margin;
+        }
+
         snap.registeredAccount = isRegisteredAccount();
         snap.active = active;
         snap.depositsPaused = depositsPaused;

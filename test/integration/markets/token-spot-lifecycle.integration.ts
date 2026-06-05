@@ -191,11 +191,11 @@ describe("Token spot orderbook lifecycle integration", function () {
     await expectRevert(
       contracts.tokenSpotOrderBook
         .connect(actors.attacker)
-        .placeOrder(ETH, baseToken, quoteToken, 1, ONE, ONE, 0),
+        .placeOrder(ETH, baseToken, quoteToken, 1, ONE, ONE, 0, ethers.ZeroAddress),
     );
 
     await expectRevert(
-      contracts.tokenSpotOrderBook.connect(actors.attacker).acceptOrder(1n, 1n, ETH),
+      contracts.tokenSpotOrderBook.connect(actors.attacker).acceptOrder(1n, 1n, ETH, ethers.ZeroAddress),
     );
 
     await expectRevert(
@@ -307,7 +307,7 @@ describe("Token spot orderbook lifecycle integration", function () {
           price,
           baseAmount,
           0,
-        )
+         ethers.ZeroAddress)
     ).wait();
 
     const makerOrderId = nextOrderIdBefore;
@@ -337,7 +337,7 @@ describe("Token spot orderbook lifecycle integration", function () {
           makerOrderId,
           baseAmount,
           ETH,
-        )
+         ethers.ZeroAddress)
     ).wait();
 
     const removed = await contracts.tokenSpotOrderBook.getOrder(makerOrderId);
@@ -479,7 +479,7 @@ describe("Token spot orderbook lifecycle integration", function () {
           price,
           makerBaseAmount,
           0,
-        )
+         ethers.ZeroAddress)
     ).wait();
     const makerOrderId = nextOrderIdBefore;
 
@@ -491,7 +491,7 @@ describe("Token spot orderbook lifecycle integration", function () {
           makerOrderId,
           fillBaseAmount,
           ETH,
-        )
+         ethers.ZeroAddress)
     ).wait();
 
     const makerPctCharged = chargedPercentageProRata(
@@ -616,7 +616,7 @@ describe("Token spot orderbook lifecycle integration", function () {
           price,
           baseAmount,
           expiry,
-        )
+         ethers.ZeroAddress)
     ).wait();
     const orderId = nextOrderIdBefore;
 

@@ -1,3 +1,5 @@
+import { safeDeployContract } from "./safe-deploy-contract.js";
+
 export async function deployOptionContract(
   ethers: any,
   deployment: {
@@ -10,13 +12,11 @@ export async function deployOptionContract(
   const [deployer] = await ethers.getSigners();
   const deployerAddress = await deployer.getAddress();
 
-  const optionContract = await ethers.deployContract("OptionContract", [
+  const optionContract = await safeDeployContract(ethers, "OptionContract", [
     deployment.addresses.sethxVault,
     deployment.addresses.accountRegistry,
     deployerAddress,
   ]);
-
-  await optionContract.waitForDeployment();
 
   return {
     optionContract,

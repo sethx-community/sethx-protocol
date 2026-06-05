@@ -6,6 +6,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 import { SethxVault } from "../vault/SethxVault.sol";
+import { AccountRegistry } from "./AccountRegistry.sol";
 
 import { TokenSpotOrderBook } from "../markets/spot/TokenSpotOrderBook.sol";
 import { NFTSpotOrderBook } from "../markets/spot/NFTSpotOrderBook.sol";
@@ -23,6 +24,8 @@ import { BinaryMarginOptionContract } from "../markets/margin/BinaryMarginOption
 
 import { LendingOrderBook } from "../markets/lending/LendingOrderBook.sol";
 import { LendingContract } from "../markets/lending/LendingContract.sol";
+
+import { FuturesTypes } from "../markets/futures/FuturesTypes.sol";
 
 interface ILiquidationAuctionBuyer {
     function buyAuctionedAccount(address account) external;
@@ -57,19 +60,23 @@ contract Account {
     string public accountName;
     bool public isActive;
     SethxVault public immutable vault;
+    AccountRegistry public immutable accountRegistry;
 
     event RescueEth(uint256 amount);
     event RescueToken(address indexed token, uint256 amount);
     event RescueNft(address indexed nft, uint256 tokenId);
     event AccountNameUpdated(string oldName, string newName);
     event AccountActiveStatusUpdated(bool oldStatus, bool newStatus);
+    event OwnerTransferred(address indexed oldOwner, address indexed newOwner);
 
-    constructor(address _owner, address _vault) {
+    constructor(address _owner, address _vault, address _accountRegistry) {
         if (_owner == address(0)) revert ZeroAddress();
         if (_vault == address(0)) revert ZeroAddress();
+        if (_accountRegistry == address(0)) revert ZeroAddress();
         owner = _owner;
         isActive = true;
         vault = SethxVault(_vault);
+        accountRegistry = AccountRegistry(_accountRegistry);
     }
 
     modifier onlyOwner() {
@@ -88,8 +95,19 @@ contract Account {
 
     function acceptOwnership() external {
         if (msg.sender != pendingOwner) revert NotPendingOwner();
-        owner = pendingOwner;
+
+        address oldOwner = owner;
+        address newOwner = pendingOwner;
+
+        // Keep AccountRegistry ownership and the account-local owner in sync.
+        // The registry permits a registered account to update its own owner;
+        // unauthorized EOAs still need TRANSFER_ROLE.
+        accountRegistry.transferAccountOwner(address(this), newOwner);
+
+        owner = newOwner;
         pendingOwner = address(0);
+
+        emit OwnerTransferred(oldOwner, newOwner);
     }
 
     function cancelOwnershipTransfer() external onlyOwner {
@@ -204,7 +222,8 @@ contract Account {
         TokenSpotOrderBook.Side side,
         uint256 price,
         uint256 amount,
-        uint256 expiry
+        uint256 expiry,
+        address referrer
     ) external onlyOwner {
         TokenSpotOrderBook(orderBook).placeOrder(
             feeToken,
@@ -213,7 +232,8 @@ contract Account {
             side,
             price,
             amount,
-            expiry
+            expiry,
+            referrer
         );
     }
 
@@ -225,9 +245,10 @@ contract Account {
         address orderBook,
         uint256 makerOrderId,
         uint256 amount,
-        address feeToken
+        address feeToken,
+        address referrer
     ) external onlyOwner {
-        TokenSpotOrderBook(orderBook).acceptOrder(makerOrderId, amount, feeToken);
+        TokenSpotOrderBook(orderBook).acceptOrder(makerOrderId, amount, feeToken, referrer);
     }
 
     // =========================================================
@@ -245,7 +266,8 @@ contract Account {
         address feeToken,
         OptionsOrderBook.OrderIntent intent,
         uint256 size,
-        uint256 askPrice
+        uint256 askPrice,
+        address referrer
     ) external onlyOwner {
         OptionsOrderBook(orderBook).placeOrder(
             optionType,
@@ -257,7 +279,8 @@ contract Account {
             feeToken,
             intent,
             size,
-            askPrice
+            askPrice,
+            referrer
         );
     }
 
@@ -269,9 +292,10 @@ contract Account {
         address orderBook,
         uint256 makerOrderId,
         uint256 amount,
-        address feeToken
+        address feeToken,
+        address referrer
     ) external onlyOwner {
-        OptionsOrderBook(orderBook).acceptOrder(makerOrderId, amount, feeToken);
+        OptionsOrderBook(orderBook).acceptOrder(makerOrderId, amount, feeToken, referrer);
     }
 
     // =========================================================
@@ -311,13 +335,33 @@ contract Account {
         uint256 price,
         uint256 amount,
         uint256 expiry,
-        address feeToken
+        address feeToken,
+        address referrer
     ) external onlyOwner {
-        FuturesOrderBook(orderBook).placeOrder(marketKey, intent, price, amount, expiry, feeToken);
+        FuturesOrderBook(orderBook).placeOrder(
+            marketKey,
+            intent,
+            price,
+            amount,
+            expiry,
+            feeToken,
+            referrer
+        );
     }
 
     function cancelOrderFutures(address orderBook, uint256 orderId) external onlyOwner {
         FuturesOrderBook(orderBook).cancelOrder(orderId);
+    }
+
+    function matchFuturesImbalance(
+        address orderBook,
+        bytes32 marketKey,
+        uint256 maxMatches
+    ) external onlyOwner returns (uint256 matchedAmount, uint256 callerReward, uint256 protocolFee) {
+        if (orderBook == address(0)) revert ZeroAddress();
+        if (maxMatches == 0) revert InvalidAmount();
+
+        return FuturesOrderBook(orderBook).matchImbalance(marketKey, maxMatches);
     }
 
     // ---- FuturesContract (margin management) ------------
@@ -325,18 +369,64 @@ contract Account {
     function addFuturesMargin(
         address futuresContract,
         bytes32 marketKey,
-        bool isLong,
         uint256 amount
     ) external onlyOwner {
-        FuturesContract(futuresContract).addMargin(marketKey, isLong, amount);
+        FuturesContract(futuresContract).addMargin(marketKey, amount);
     }
 
-    function releaseFuturesMargin(
+    function releaseFuturesMargin(address futuresContract, bytes32 marketKey) external onlyOwner {
+        FuturesContract(futuresContract).releaseExcessMargin(marketKey);
+    }
+
+    function liquidateFuturesPosition(
         address futuresContract,
         bytes32 marketKey,
-        bool isLong
-    ) external onlyOwner {
-        FuturesContract(futuresContract).releaseExcessMargin(marketKey, isLong);
+        address account
+    ) external onlyOwner returns (uint256 seizedMargin, uint256 callerReward) {
+        if (futuresContract == address(0)) revert ZeroAddress();
+        if (account == address(0)) revert ZeroAddress();
+
+        return FuturesContract(futuresContract).liquidatePosition(marketKey, account);
+    }
+
+    function liquidateFuturesHead(
+        address futuresContract,
+        bytes32 marketKey,
+        FuturesTypes.PositionSide side,
+        uint256 maxSteps
+    ) external onlyOwner returns (uint256 processed) {
+        if (futuresContract == address(0)) revert ZeroAddress();
+        if (maxSteps == 0) revert InvalidAmount();
+
+        return FuturesContract(futuresContract).liquidateHead(marketKey, side, maxSteps);
+    }
+
+    function rebaseFuturesLosingPositionsToBufferTarget(
+        address futuresContract,
+        bytes32 marketKey,
+        FuturesTypes.PositionSide losingSide,
+        uint256 targetSettlementBuffer,
+        uint256 maxSteps
+    )
+        external
+        onlyOwner
+        returns (
+            uint256 scanned,
+            uint256 rebased,
+            uint256 amountCollected,
+            uint256 settlementBufferAfter
+        )
+    {
+        if (futuresContract == address(0)) revert ZeroAddress();
+        if (maxSteps == 0) revert InvalidAmount();
+
+        return
+            FuturesContract(futuresContract).rebaseLosingPositionsToBufferTarget(
+                marketKey,
+                losingSide,
+                targetSettlementBuffer,
+                maxSteps
+            );
     }
 
     // =========================================================
@@ -350,7 +440,8 @@ contract Account {
         uint256 size,
         uint256 askPrice,
         uint256 expiry,
-        address feeToken
+        address feeToken,
+        address referrer
     ) external onlyOwner {
         if (orderbook == address(0)) revert ZeroAddress();
         return
@@ -360,39 +451,20 @@ contract Account {
                 size,
                 askPrice,
                 expiry,
-                feeToken
+                feeToken,
+                referrer
             );
-    }
-
-    function placeOrderMarginOptionForMarket(
-        address orderbook,
-        string calldata ticker,
-        MarginOptionContract.OptionType optionType,
-        address oracle,
-        uint256 strikePrice,
-        uint256 marketExpiry,
-        uint256 collateralBps,
-        MarginOptionsOrderBook.OrderIntent intent,
-        uint256 size,
-        uint256 askPrice,
-        uint256 expiry,
-        address feeToken
-    ) external onlyOwner {
-        if (orderbook == address(0)) revert ZeroAddress();
-        MarginOptionsOrderBook(orderbook).placeOrderForMarket(
-            ticker, optionType, oracle, strikePrice, marketExpiry, collateralBps,
-            intent, size, askPrice, expiry, feeToken
-        );
     }
 
     function acceptOrderMarginOption(
         address orderbook,
         uint256 makerOrderId,
         uint256 amount,
-        address feeToken
+        address feeToken,
+        address referrer
     ) external onlyOwner {
         if (orderbook == address(0)) revert ZeroAddress();
-        MarginOptionsOrderBook(orderbook).acceptOrder(makerOrderId, amount, feeToken);
+        MarginOptionsOrderBook(orderbook).acceptOrder(makerOrderId, amount, feeToken, referrer);
     }
 
     function cancelOrderMarginOption(address orderbook, uint256 orderId) external onlyOwner {
@@ -431,7 +503,8 @@ contract Account {
         uint256 payoutAmount,
         uint256 askPrice,
         uint256 expiry,
-        address feeToken
+        address feeToken,
+        address referrer
     ) external onlyOwner returns (uint256) {
         if (orderbook == address(0)) revert ZeroAddress();
         return
@@ -441,38 +514,25 @@ contract Account {
                 payoutAmount,
                 askPrice,
                 expiry,
-                feeToken
+                feeToken,
+                referrer
             );
-    }
-
-    function placeOrderBinaryMarginOptionForMarket(
-        address orderbook,
-        string calldata ticker,
-        BinaryMarginOptionContract.OptionType optionType,
-        address oracle,
-        uint256 strikePrice,
-        uint256 marketExpiry,
-        uint8 intent,
-        uint256 payoutAmount,
-        uint256 askPrice,
-        uint256 expiry,
-        address feeToken
-    ) external onlyOwner returns (uint256) {
-        if (orderbook == address(0)) revert ZeroAddress();
-        return BinaryMarginOptionsOrderBook(orderbook).placeOrderForMarket(
-            ticker, optionType, oracle, strikePrice, marketExpiry,
-            intent, payoutAmount, askPrice, expiry, feeToken
-        );
     }
 
     function acceptOrderBinaryMarginOption(
         address orderbook,
         uint256 makerOrderId,
         uint256 amount,
-        address feeToken
+        address feeToken,
+        address referrer
     ) external onlyOwner {
         if (orderbook == address(0)) revert ZeroAddress();
-        BinaryMarginOptionsOrderBook(orderbook).acceptOrder(makerOrderId, amount, feeToken);
+        BinaryMarginOptionsOrderBook(orderbook).acceptOrder(
+            makerOrderId,
+            amount,
+            feeToken,
+            referrer
+        );
     }
 
     function cancelOrderBinaryMarginOption(address orderbook, uint256 orderId) external onlyOwner {
@@ -512,7 +572,8 @@ contract Account {
         address quoteToken,
         NFTSpotOrderBook.Side side,
         uint256 price,
-        uint256 expiry
+        uint256 expiry,
+        address referrer
     ) external onlyOwner {
         NFTSpotOrderBook(orderBook).placeOrder(
             feeToken,
@@ -521,16 +582,18 @@ contract Account {
             quoteToken,
             side,
             price,
-            expiry
+            expiry,
+            referrer
         );
     }
 
     function acceptOrderNFTSpot(
         address orderBook,
         uint256 makerOrderId,
-        address feeToken
+        address feeToken,
+        address referrer
     ) external onlyOwner {
-        NFTSpotOrderBook(orderBook).acceptOrder(makerOrderId, feeToken);
+        NFTSpotOrderBook(orderBook).acceptOrder(makerOrderId, feeToken, referrer);
     }
 
     function cancelOrderNFTSpot(address orderBook, uint256 orderId) external onlyOwner {

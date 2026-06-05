@@ -33,7 +33,11 @@ function getDeploymentConfig() {
 
 async function main() {
   const config = getDeploymentConfig();
-  const { ethers } = await network.create();
+  if (config.environment !== "local") {
+    throw new Error("run-deployment.ts is local-only. Use scripts/run-stage.ts for testnet/mainnet staged deployments.");
+  }
+
+  const { ethers } = await network.connect();
 
   const chain = await ethers.provider.getNetwork();
 
@@ -58,8 +62,7 @@ async function main() {
     environment: config.environment,
     chainId: chain.chainId,
     deployedAt: new Date().toISOString(),
-    founderAddress: config.founderAddress,
-    founderReleaseTime: deployment.founderReleaseTime,
+    founderAddresses: config.founderAddresses,
     addresses: deployment.addresses,
     tokenDistribution: distribution,
   });

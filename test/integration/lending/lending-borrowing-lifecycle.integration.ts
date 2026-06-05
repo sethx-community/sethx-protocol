@@ -161,6 +161,12 @@ async function expectEthCustodyDelta(
   );
 }
 
+function contractHasFunction(contract: any, functionName: string): boolean {
+  return contract.interface.fragments.some(
+    (fragment: any) => fragment.type === "function" && fragment.name === functionName,
+  );
+}
+
 async function placeLendOrderFromNormal(
   account: any,
   owner: any,
@@ -242,6 +248,19 @@ describe("Lending and borrowing lifecycle integration", function () {
     const orderExpiry = (await latestTimestamp()) + 7n * 24n * 60n * 60n;
     const key = marketKey(expiry);
 
+    expect(
+      contractHasFunction(contracts.lendingContract, "RECOVERY_MANAGER_ROLE"),
+      "RECOVERY_MANAGER_ROLE was removed from LendingContract",
+    ).to.equal(false);
+    expect(
+      contractHasFunction(contracts.lendingContract, "setRecoveryManager"),
+      "setRecoveryManager was removed from LendingContract",
+    ).to.equal(false);
+    expect(
+      contractHasFunction(contracts.lendingContract, "recordRecoveryFromVault"),
+      "recordRecoveryFromVault was removed from LendingContract",
+    ).to.equal(false);
+
     const calls: Array<[string, () => Promise<unknown>]> = [
       [
         "LendingOrderBook.setLiquidationEngine",
@@ -310,10 +329,6 @@ describe("Lending and borrowing lifecycle integration", function () {
         () => contracts.lendingContract.connect(actors.attacker).setRiskModule(attackerAddress),
       ],
       [
-        "LendingContract.setRecoveryManager",
-        () => contracts.lendingContract.connect(actors.attacker).setRecoveryManager(attackerAddress, true),
-      ],
-      [
         "LendingContract.setLossManager",
         () => contracts.lendingContract.connect(actors.attacker).setLossManager(attackerAddress, true),
       ],
@@ -344,10 +359,6 @@ describe("Lending and borrowing lifecycle integration", function () {
       [
         "LendingContract.recordBorrowerMarketLoss from EOA",
         () => contracts.lendingContract.connect(actors.attacker).recordBorrowerMarketLoss(attackerAddress, key, ONE),
-      ],
-      [
-        "LendingContract.recordRecoveryFromVault from EOA",
-        () => contracts.lendingContract.connect(actors.attacker).recordRecoveryFromVault(key, ONE),
       ],
       [
         "LendingContract.settleMarket from EOA",

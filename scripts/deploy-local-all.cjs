@@ -27,8 +27,6 @@ const stages = [
   "63",
   "64",
   "65",
-  "66",
-  "67",
   "68",
   "69",
   "70",
@@ -63,7 +61,9 @@ function cleanLocalDeploymentOutput() {
   const outputDir = path.join(process.cwd(), "deployments", "local");
 
   if (!fs.existsSync(outputDir)) {
-    console.log("No local deployment output directory found at deployments/local");
+    console.log(
+      "No local deployment output directory found at deployments/local",
+    );
     return;
   }
 
@@ -84,7 +84,12 @@ function cleanLocalDeploymentOutput() {
 function assertLocalOracleDeploymentOutput() {
   const fs = require("node:fs");
   const path = require("node:path");
-  const latestPath = path.join(process.cwd(), "deployments", "local", "latest.json");
+  const latestPath = path.join(
+    process.cwd(),
+    "deployments",
+    "local",
+    "latest.json",
+  );
   const required = [
     "usdcToken",
     "wbtcToken",

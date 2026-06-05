@@ -23,7 +23,6 @@ const DEPLOYED_PROTOCOL_TARGETS: Array<{
   contractName: string;
 }> = [
   { key: "sethxToken", contractName: "SethxToken" },
-  { key: "founderTokenTimelock", contractName: "FounderTokenTimelock" },
   { key: "treasuryAuthority", contractName: "TreasuryAuthority" },
   { key: "protocolTreasury", contractName: "ProtocolTreasury" },
   { key: "sethxTimelock", contractName: "SethxTimelock" },
@@ -48,7 +47,6 @@ const DEPLOYED_PROTOCOL_TARGETS: Array<{
   { key: "marginOptionsOrderBook", contractName: "MarginOptionsOrderBook" },
   { key: "futuresContract", contractName: "FuturesContract" },
   { key: "futuresOrderBook", contractName: "FuturesOrderBook" },
-  { key: "settlementManager", contractName: "SettlementManager" },
   { key: "lendingContract", contractName: "LendingContract" },
   { key: "lendingOrderBook", contractName: "LendingOrderBook" },
   { key: "optionsValuationAdapter", contractName: "OptionsValuationAdapter" },
@@ -230,9 +228,18 @@ async function loadSweepTargets(): Promise<SweepTarget[]> {
   const deployment = readLocalDeployment();
   const targets: SweepTarget[] = [];
 
+  for (const [index, lock] of (deployment.addresses.founderTokenTimelocks ?? []).entries()) {
+    targets.push({
+      key: `founderTokenTimelocks[${index}]`,
+      contractName: "FounderTokenTimelock",
+      address: lock.address,
+      contract: await ethers.getContractAt("FounderTokenTimelock", lock.address),
+    });
+  }
+
   for (const target of DEPLOYED_PROTOCOL_TARGETS) {
     const address = deployment.addresses[target.key];
-    if (!address) continue;
+    if (typeof address !== "string" || address.length === 0) continue;
 
     targets.push({
       key: target.key,

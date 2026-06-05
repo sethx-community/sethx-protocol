@@ -20,7 +20,6 @@ contract LendingContract is AccessControl {
     bytes32 public constant GOVERNOR_ROLE = keccak256("GOVERNOR_ROLE");
     bytes32 public constant ORDERBOOK_ROLE = keccak256("ORDERBOOK_ROLE");
     bytes32 public constant LOSS_MANAGER_ROLE = keccak256("LOSS_MANAGER_ROLE");
-    bytes32 public constant RECOVERY_MANAGER_ROLE = keccak256("RECOVERY_MANAGER_ROLE");
 
     uint256 public constant BPS = 10_000;
     uint256 public constant RAY = 1e27;
@@ -36,7 +35,6 @@ contract LendingContract is AccessControl {
 
     error ZeroAddress();
     error DirectETHNotAccepted();
-    error UseBorrowerLoss();
 
     error InvalidRiskLevel();
     error InvalidLtvConfig();
@@ -204,21 +202,11 @@ contract LendingContract is AccessControl {
         uint256 remainingBorrowerFaceValue,
         uint256 remainingOutstandingFaceValue
     );
-    event RecoveryRecordedBeforeSettlement(
-        bytes32 indexed marketKey,
-        uint256 amount,
-        uint256 totalRecoveredBeforeSettlement,
-        uint256 effectiveCumulativeLosses
-    );
+
     event MarketPrimarySettled(
         bytes32 indexed marketKey,
         uint256 initialRecoveryRateRay,
         uint256 totalRecoveredAtSettlement
-    );
-    event SupplementalRecoveryRecorded(
-        bytes32 indexed marketKey,
-        uint256 amount,
-        uint256 newSupplementalRecoveryPerFaceRay
     );
 
     event BondInitialRedeemed(
@@ -272,11 +260,8 @@ contract LendingContract is AccessControl {
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(GOVERNOR_ROLE, admin);
         _grantRole(LOSS_MANAGER_ROLE, admin);
-        _grantRole(RECOVERY_MANAGER_ROLE, admin);
 
-        _setRoleAdmin(ORDERBOOK_ROLE, GOVERNOR_ROLE);
         _setRoleAdmin(LOSS_MANAGER_ROLE, GOVERNOR_ROLE);
-        _setRoleAdmin(RECOVERY_MANAGER_ROLE, GOVERNOR_ROLE);
     }
 
     function setRiskLevel(
@@ -306,15 +291,6 @@ contract LendingContract is AccessControl {
         address oldRiskModule = address(riskModule);
         riskModule = ILendingRiskModuleHook(newRiskModule);
         emit RiskModuleSet(oldRiskModule, newRiskModule);
-    }
-
-    function setRecoveryManager(address manager, bool allowed) external onlyRole(GOVERNOR_ROLE) {
-        if (manager == address(0)) revert ZeroAddress();
-        if (allowed) {
-            _grantRole(RECOVERY_MANAGER_ROLE, manager);
-        } else {
-            _revokeRole(RECOVERY_MANAGER_ROLE, manager);
-        }
     }
 
     function setLossManager(address manager, bool allowed) external onlyRole(GOVERNOR_ROLE) {
@@ -814,10 +790,6 @@ contract LendingContract is AccessControl {
         _recordBorrowerMarketLoss(borrower, marketKey, lossAmount);
     }
 
-    function recordMarketLoss(bytes32, uint256) external pure {
-        revert UseBorrowerLoss();
-    }
-
     function _recordBorrowerMarketLoss(
         address borrower,
         bytes32 marketKey,
@@ -871,66 +843,6 @@ contract LendingContract is AccessControl {
             debt.faceValue,
             totals.outstandingFaceValue
         );
-    }
-
-    function recordRecoveryFromVault(
-        bytes32 marketKey,
-        uint256 amount
-    ) external onlyRole(RECOVERY_MANAGER_ROLE) {
-        _recordRecoveryAccounting(marketKey, amount);
-    }
-
-    function _recordRecoveryAccounting(bytes32 marketKey, uint256 amount) internal {
-        if (!marketExists[marketKey]) revert UnknownMarket();
-        if (amount == 0) revert InvalidAmount();
-
-        MarketSettlement storage ms = marketSettlements[marketKey];
-        MarketTotals storage totals = marketTotals[marketKey];
-
-        marketEscrowedEth[marketKey] += amount;
-        emit MarketEscrowFunded(marketKey, amount, marketEscrowedEth[marketKey]);
-
-        if (!ms.primarySettled) {
-            uint256 resolvedBefore = recoveredBeforeSettlement[marketKey] + totals.cumulativeLosses;
-            if (resolvedBefore + amount > totals.totalFaceValue) revert ResolvedExceedsFace();
-
-            uint256 appliedToOutstanding =
-                amount > totals.outstandingFaceValue ? totals.outstandingFaceValue : amount;
-
-            totals.outstandingFaceValue -= appliedToOutstanding;
-
-            if (totals.outstandingPrincipal > totals.outstandingFaceValue) {
-                totals.outstandingPrincipal = totals.outstandingFaceValue;
-            }
-
-            recoveredBeforeSettlement[marketKey] += amount;
-
-            emit RecoveryRecordedBeforeSettlement(
-                marketKey,
-                amount,
-                recoveredBeforeSettlement[marketKey],
-                totals.cumulativeLosses
-            );
-            return;
-        }
-
-        if (ms.settledTotalFaceValue == 0) return;
-
-        uint256 currentTotalRecoveryRay =
-            ms.initialRecoveryRateRay + ms.supplementalRecoveryPerFaceRay;
-
-        if (currentTotalRecoveryRay >= RAY) return;
-
-        uint256 deltaPerFaceRay = _mulDivDown(amount, RAY, ms.settledTotalFaceValue);
-        uint256 remainingRay = RAY - currentTotalRecoveryRay;
-
-        if (deltaPerFaceRay > remainingRay) {
-            deltaPerFaceRay = remainingRay;
-        }
-
-        ms.supplementalRecoveryPerFaceRay += deltaPerFaceRay;
-
-        emit SupplementalRecoveryRecorded(marketKey, amount, ms.supplementalRecoveryPerFaceRay);
     }
 
     function _applyDebtRepayment(

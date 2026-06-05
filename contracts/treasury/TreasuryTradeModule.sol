@@ -420,7 +420,8 @@ contract TreasuryTradeModule is TreasuryModuleBase {
             side,
             price,
             amount,
-            expiry
+            expiry,
+            address(0)
         );
 
         emit SpotOrderPlaced(

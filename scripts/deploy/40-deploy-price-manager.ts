@@ -1,3 +1,5 @@
+import { safeDeployContract } from "./safe-deploy-contract.js";
+
 export async function deployPriceManager(
   ethers: any,
   parameters: {
@@ -9,11 +11,10 @@ export async function deployPriceManager(
   const [deployer] = await ethers.getSigners();
   const deployerAddress = await deployer.getAddress();
 
-  const priceManager = await ethers.deployContract("PriceManager", [
+  const priceManager = await safeDeployContract(ethers, "PriceManager", [
     deployerAddress,
     parameters.oracleDefaults.staleTimeoutSeconds,
   ]);
-  await priceManager.waitForDeployment();
 
   return {
     priceManager,

@@ -47,6 +47,10 @@ export function getMainnetDeploymentConfig() {
     environment: "mainnet",
     expectedChainId: 1n,
     outputDir: "deployments/mainnet",
-    founderAddress: requireMainnetAddress("SETHX_FOUNDER_ADDRESS"),
+    founderAddresses: [
+      requireMainnetAddress("SETHX_FOUNDER_1_ADDRESS"),
+      requireMainnetAddress("SETHX_FOUNDER_2_ADDRESS"),
+      requireMainnetAddress("SETHX_FOUNDER_3_ADDRESS"),
+    ],
   } as const;
 }

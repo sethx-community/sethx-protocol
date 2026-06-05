@@ -136,7 +136,7 @@ async function placeAndMaybeFillSpot(
         price,
         amount,
         await freshOrderExpiry(),
-      )
+       ethers.ZeroAddress)
   ).wait();
 
   if (fillAmount > 0n) {
@@ -148,7 +148,7 @@ async function placeAndMaybeFillSpot(
           orderId,
           fillAmount,
           ETH,
-        )
+         ethers.ZeroAddress)
     ).wait();
   }
 

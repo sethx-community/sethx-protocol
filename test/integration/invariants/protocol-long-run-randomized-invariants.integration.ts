@@ -165,7 +165,7 @@ async function placeSpotOrder(
         price,
         amount,
         await freshOrderExpiry(),
-      )
+       ethers.ZeroAddress)
   ).wait();
   return orderId;
 }
@@ -182,7 +182,7 @@ async function maybeAcceptSpotOrder(
   await (
     await taker.contract
       .connect(taker.owner)
-      .acceptOrderTokenSpot(await contracts.tokenSpotOrderBook.getAddress(), orderId, fillAmount, ETH)
+      .acceptOrderTokenSpot(await contracts.tokenSpotOrderBook.getAddress(), orderId, fillAmount, ETH, ethers.ZeroAddress)
   ).wait();
 }
 

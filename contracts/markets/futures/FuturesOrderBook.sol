@@ -8,32 +8,14 @@ import { FeeManager } from "../../oracle/FeeManager.sol";
 import { SethxVault } from "../../vault/SethxVault.sol";
 import { AccountRegistry } from "../../accounts/AccountRegistry.sol";
 
+import { FuturesTypes } from "./FuturesTypes.sol";
+
 interface IPassiveLiquidityPoolStatusView {
     function active() external view returns (bool);
 }
 
-/// @notice Futures OrderBook
-/// - Orders are BUY/SELL (not open/close). Execution auto-nets:
-///     BUY: close SHORT first, then open/increase LONG
-///     SELL: close LONG first, then open/increase SHORT
-/// - Margin custody is handled by Vault; FuturesContract holds ledger.
-/// - Margin is locked at placement based on lastSettlementPrice.
-/// - Fees are locked at placement and treated separately (fixed snapshot; charged on fills).
-/// - Additionally, we lock a *fixed* variation/PnL buffer at placement based on (limit price vs settlement)
-///   that does NOT change while resting. At match-time, if settlement moved, the buffer may be insufficient.
-/// - At match time, we settle variation (execPrice vs current settlement) by transferring from payer’s locked
-///   quote collateral to receiver (credit), and we ensure remaining locked collateral can support opening margin.
-/// - If not, the unsafe order is cancelled (maker: removed from book; taker: cancelled and stop matching).
-///
-/// IMPORTANT (single locked pool):
-/// - Vault has ONE locked pool per user/token (no per-order pools).
-/// - Therefore OrderBook MUST NOT "credit" an order with released close-margin by inflating collateralLocked.
-///   Doing so would allow unlocking margin that belongs to positions.
-/// - Close-awareness must be handled by reducing required OPEN margin (openAmt = tradeAmt - closeAmt),
-///   not by increasing the order's locked pot.
 contract FuturesOrderBook is AccessControl {
     bytes32 public constant ADMIN_ROLE = DEFAULT_ADMIN_ROLE;
-    bytes32 public constant SETTLEMENT_MANAGER_ROLE = keccak256("SETTLEMENT_MANAGER_ROLE");
     bytes32 public constant PASSIVE_MM_PUBLISHER_ROLE = keccak256("PASSIVE_MM_PUBLISHER_ROLE");
 
     uint256 public maxOrdersPerBlock;
@@ -44,6 +26,7 @@ contract FuturesOrderBook is AccessControl {
     // -------- Errors --------
     error NotRegisteredAccount();
     error ZeroAddress();
+    error InvalidAmount();
 
     error InvalidMarket();
     error UnknownMarket();
@@ -71,10 +54,11 @@ contract FuturesOrderBook is AccessControl {
     error OrderNotInBook();
 
     error InvalidPrice();
-    error SyntheticInvalidPrice();
 
     error SpentExceedsLocked();
     error InvalidOrderLimits();
+
+    error PassiveCollateralMismatch();
 
     enum Side {
         Buy, // close shorts first, then open longs
@@ -84,6 +68,7 @@ contract FuturesOrderBook is AccessControl {
     struct Order {
         uint256 orderId;
         address user; // Account contract address
+        address referrer;
         bytes32 marketKey;
         Side side;
         uint256 amount; // remaining size
@@ -124,21 +109,13 @@ contract FuturesOrderBook is AccessControl {
     mapping(bytes32 => PassiveSnapshot) public passiveSnapshot;
     mapping(bytes32 => address) public passivePoolForMarket;
 
-    /// @dev Optional synthetic maker used by SettlementManager for imbalance.
-    struct SyntheticImbalance {
-        bool active;
-        Side makerSide; // maker's side (Buy or Sell)
-        uint256 price; // execution price to use
-        uint256 amount; // remaining size capacity
-        uint256 updatedAt;
-    }
-
     FuturesContract public immutable futures;
     SethxVault public immutable vault;
     FeeManager public immutable feeManager;
     AccountRegistry public immutable accountRegistry;
 
     uint256 public nextOrderId = 1;
+    uint256 public imbalanceCallerFeeShareBps = 10_000;
 
     // Buy book sorted high->low (bids)
     mapping(bytes32 => uint256[]) public buyBook;
@@ -148,8 +125,6 @@ contract FuturesOrderBook is AccessControl {
     mapping(uint256 => Order) public ordersById;
     mapping(address => uint256[]) public userOrders;
     mapping(uint256 => bool) public isOrderCancelled;
-
-    mapping(bytes32 => SyntheticImbalance) public synthetic;
 
     mapping(address => mapping(bytes32 => uint256)) public lastOrderBlock;
     mapping(address => mapping(bytes32 => uint256)) public ordersInBlock;
@@ -179,7 +154,8 @@ contract FuturesOrderBook is AccessControl {
     event OrderPlaced(
         uint256 indexed orderId,
         address indexed user,
-        bytes32 indexed marketKey,
+        address indexed referrer,
+        bytes32 marketKey,
         Side side,
         uint256 amount,
         uint256 price,
@@ -195,27 +171,21 @@ contract FuturesOrderBook is AccessControl {
         uint256 feeChargedThisStep
     );
 
-    event OrderMatchedWithSynthetic(
-        uint256 indexed takerOrderId,
-        bytes32 indexed marketKey,
-        uint256 amount,
-        uint256 execPrice,
-        Side syntheticMakerSide,
-        uint256 feeChargedThisStep
-    );
-
     event OrderCancelled(uint256 indexed orderId);
     event OrderExpiredCancelled(uint256 indexed orderId);
 
-    event SyntheticReplaced(
-        bytes32 indexed marketKey,
-        bool active,
-        Side makerSide,
-        uint256 amount,
-        uint256 price
-    );
-    event SyntheticConsumed(bytes32 indexed marketKey, uint256 filled, uint256 remaining);
     event OrderLimitsSet(uint256 maxOrdersPerBlock, uint256 maxUnmatchedOrders);
+
+    event ImbalanceMatched(
+        bytes32 indexed marketKey,
+        address indexed caller,
+        FuturesTypes.PositionSide syntheticMakerSide,
+        uint256 amount,
+        uint256 settlementPrice,
+        uint256 callerReward,
+        uint256 protocolFee
+    );
+    event ImbalanceCallerFeeShareUpdated(uint256 oldShare, uint256 newShare);
 
     modifier onlyAccount() {
         if (!accountRegistry.isAccount(msg.sender) && !accountRegistry.isLendingAccount(msg.sender))
@@ -253,11 +223,6 @@ contract FuturesOrderBook is AccessControl {
     // Admin
     // =========================================================
 
-    function setSettlementManager(address sm) external onlyRole(ADMIN_ROLE) {
-        if (sm == address(0)) revert ZeroAddress();
-        _grantRole(SETTLEMENT_MANAGER_ROLE, sm);
-    }
-
     function setPassivePublisher(address publisher, bool enabled) external onlyRole(ADMIN_ROLE) {
         if (publisher == address(0)) revert ZeroAddress();
         if (enabled) _grantRole(PASSIVE_MM_PUBLISHER_ROLE, publisher);
@@ -291,6 +256,139 @@ contract FuturesOrderBook is AccessControl {
         emit OrderLimitsSet(newMaxOrdersPerBlock, newMaxUnmatchedOrders);
     }
 
+    function setImbalanceCallerFeeShareBps(uint256 newShare) external onlyRole(ADMIN_ROLE) {
+        if (newShare > 10_000) revert InvalidAmount();
+
+        uint256 oldShare = imbalanceCallerFeeShareBps;
+        imbalanceCallerFeeShareBps = newShare;
+
+        emit ImbalanceCallerFeeShareUpdated(oldShare, newShare);
+    }
+
+    // =========================================================
+    // Public
+    // =========================================================
+
+    function matchImbalance(
+        bytes32 marketKey,
+        uint256 maxMatches
+    )
+        external
+        onlyAccount
+        returns (uint256 matchedAmount, uint256 callerReward, uint256 protocolFee)
+    {
+        if (maxMatches == 0) revert InvalidAmount();
+
+        futures.requireFreshImbalanceSettlement(marketKey);
+
+        (
+            bool active,
+            FuturesTypes.PositionSide syntheticMakerSide,
+            uint256 imbalanceAmount,
+            uint256 settlementPrice
+        ) = futures.getImbalanceOrder(marketKey);
+
+        if (!active || imbalanceAmount == 0) {
+            return (0, 0, 0);
+        }
+
+        FuturesTypes.MarketConfig memory m = futures.getMarket(marketKey);
+
+        uint256[] storage book;
+        Side userSide;
+
+        if (syntheticMakerSide == FuturesTypes.PositionSide.Long) {
+            // Market is long-heavy.
+            // Synthetic maker is Buy/Long, so real users can Sell/Short into it.
+            book = sellBook[marketKey];
+            userSide = Side.Sell;
+        } else if (syntheticMakerSide == FuturesTypes.PositionSide.Short) {
+            // Market is short-heavy.
+            // Synthetic maker is Sell/Short, so real users can Buy/Long into it.
+            book = buyBook[marketKey];
+            userSide = Side.Buy;
+        } else {
+            return (0, 0, 0);
+        }
+
+        uint256 processed;
+
+        while (processed < maxMatches && imbalanceAmount > 0 && book.length > 0) {
+            uint256 orderId = book[0];
+            Order storage o = ordersById[orderId];
+
+            if (o.orderId == 0 || isOrderCancelled[orderId] || o.amount == 0) {
+                _removeIdAt(book, 0);
+                continue;
+            }
+
+            if (block.timestamp > o.expiry) {
+                _expireCancelMaker(book, 0, orderId);
+                continue;
+            }
+
+            if (o.side != userSide) {
+                _removeIdAt(book, 0);
+                continue;
+            }
+
+            if (userSide == Side.Sell) {
+                if (o.price > settlementPrice) break;
+            } else {
+                if (o.price < settlementPrice) break;
+            }
+
+            uint256 tradeAmt = o.amount < imbalanceAmount ? o.amount : imbalanceAmount;
+            if (tradeAmt == 0) break;
+
+            if (!_canAffordFill(o, tradeAmt, settlementPrice, m)) {
+                _cancelRestingMakerUnsafe(book, 0, orderId);
+                continue;
+            }
+
+            (
+                uint256 feeCharged,
+                uint256 reward,
+                uint256 protocol
+            ) = _chargeFeesForImbalanceFillExact(o, o.user, msg.sender, tradeAmt);
+
+            _applyFillToUserAndConsumeMargin(o, tradeAmt, settlementPrice, m);
+
+            o.amount -= tradeAmt;
+            matchedAmount += tradeAmt;
+            callerReward += reward;
+            protocolFee += protocol;
+            imbalanceAmount -= tradeAmt;
+            processed++;
+
+            if (o.amount == 0) {
+                address makerUser = o.user;
+                bytes32 makerMarketKey = o.marketKey;
+                uint256 makerOrderId = o.orderId;
+
+                _finalizeFilled(makerOrderId);
+
+                if (unmatchedOrderCount[makerUser][makerMarketKey] > 0) {
+                    unmatchedOrderCount[makerUser][makerMarketKey]--;
+                }
+
+                _removeIdAt(book, 0);
+            }
+
+            feeCharged; // silences unused variable if not used in event
+        }
+
+        emit ImbalanceMatched(
+            marketKey,
+            msg.sender,
+            syntheticMakerSide,
+            matchedAmount,
+            settlementPrice,
+            callerReward,
+            protocolFee
+        );
+    }
+
     // =========================================================
     // Views
     // =========================================================
@@ -303,9 +401,6 @@ contract FuturesOrderBook is AccessControl {
         return wantBuyBook ? buyBook[marketKey] : sellBook[marketKey];
     }
 
-    /// @notice Returns the top of the real user book only (excludes synthetic / virtual MM liquidity).
-    /// @dev bestBid comes from buyBook sorted high->low; bestAsk comes from sellBook sorted low->high.
-    ///      Cancelled / deleted / zero-sized orders are skipped.
     function getUserTopOfBook(
         bytes32 marketKey
     )
@@ -354,10 +449,6 @@ contract FuturesOrderBook is AccessControl {
         }
     }
 
-    /// @notice Aggregate visible depth from the real user books only within +/- `bps` of `referencePrice`.
-    /// @dev Returns ETH size on each side. Synthetic / virtual MM liquidity is excluded.
-    ///      Bid depth includes orders with price >= referencePrice * (1 - bps).
-    ///      Ask depth includes orders with price <= referencePrice * (1 + bps).
     function getUserDepthWithinBps(
         bytes32 marketKey,
         uint256 referencePrice,
@@ -413,11 +504,12 @@ contract FuturesOrderBook is AccessControl {
         uint256 price,
         uint256 amount,
         uint256 expiry,
-        address feeToken
+        address feeToken,
+        address referrer
     ) external onlyAccount {
         if (price == 0 || amount == 0) revert InvalidOrder();
 
-        FuturesContract.MarketConfig memory m = futures.getMarket(marketKey);
+        FuturesTypes.MarketConfig memory m = futures.getMarket(marketKey);
         if (m.oracle == address(0)) revert UnknownMarket();
 
         if (expiry == 0) {
@@ -445,17 +537,13 @@ contract FuturesOrderBook is AccessControl {
         // =========================================================
         // BUY closes SHORT first => isLongPositionToClose = false
         // SELL closes LONG first => isLongPositionToClose = true
-        bool isLongPositionToClose = (side == Side.Sell);
+        FuturesTypes.Position memory p = futures.getPosition(msg.sender, marketKey);
 
-        FuturesContract.Position memory p = futures.getPosition(
-            msg.sender,
-            marketKey,
-            isLongPositionToClose
-        );
+        FuturesTypes.PositionSide tradeSide = _tradeSide(side);
 
         uint256 expectedCloseAmt = 0;
-        if (p.isActive && p.size > 0) {
-            expectedCloseAmt = (p.size < amount) ? p.size : amount;
+        if (_isOppositePosition(p, tradeSide)) {
+            expectedCloseAmt = p.size < amount ? p.size : amount;
         }
 
         uint256 expectedOpenAmt = amount - expectedCloseAmt;
@@ -515,6 +603,7 @@ contract FuturesOrderBook is AccessControl {
 
         o.orderId = orderId;
         o.user = msg.sender;
+        o.referrer = referrer;
         o.marketKey = marketKey;
         o.side = side;
 
@@ -543,7 +632,17 @@ contract FuturesOrderBook is AccessControl {
 
         userOrders[msg.sender].push(orderId);
 
-        emit OrderPlaced(orderId, msg.sender, marketKey, side, amount, price, expiry, feeToken);
+        emit OrderPlaced(
+            orderId,
+            msg.sender,
+            referrer,
+            marketKey,
+            side,
+            amount,
+            price,
+            expiry,
+            feeToken
+        );
 
         // match now
         _match(orderId, m);
@@ -573,7 +672,7 @@ contract FuturesOrderBook is AccessControl {
         if (validForBlocks == 0) revert InvalidDuration();
         if (passivePoolForMarket[marketKey] == address(0)) revert NoPassivePool();
         if (bidSize == 0 && askSize == 0) revert EmptySnapshot();
-        FuturesContract.MarketConfig memory m = futures.getMarket(marketKey);
+        FuturesTypes.MarketConfig memory m = futures.getMarket(marketKey);
         if (m.oracle == address(0)) revert UnknownMarket();
 
         // allow one-sided snapshots if needed, but if both sides exist they must not internally cross
@@ -598,11 +697,14 @@ contract FuturesOrderBook is AccessControl {
         uint256 capacityNeed = 0;
 
         if (bidSize > 0) {
-            if (!poolActive && !_passiveQuoteIsReduceOnly(pool, marketKey, Side.Buy, uint256(bidSize))) {
+            if (
+                !poolActive &&
+                !_passiveQuoteIsReduceOnly(pool, marketKey, Side.Buy, uint256(bidSize))
+            ) {
                 revert PassiveQuoteOpensPosition();
             }
 
-            capacityNeed += _passiveMakerFillNeed(
+            (, uint256 extra) = _passiveMakerFillNeed(
                 pool,
                 marketKey,
                 Side.Buy,
@@ -610,14 +712,18 @@ contract FuturesOrderBook is AccessControl {
                 uint256(bidPrice),
                 m
             );
+            capacityNeed += extra;
         }
 
         if (askSize > 0) {
-            if (!poolActive && !_passiveQuoteIsReduceOnly(pool, marketKey, Side.Sell, uint256(askSize))) {
+            if (
+                !poolActive &&
+                !_passiveQuoteIsReduceOnly(pool, marketKey, Side.Sell, uint256(askSize))
+            ) {
                 revert PassiveQuoteOpensPosition();
             }
 
-            capacityNeed += _passiveMakerFillNeed(
+            (, uint256 extra) = _passiveMakerFillNeed(
                 pool,
                 marketKey,
                 Side.Sell,
@@ -625,6 +731,7 @@ contract FuturesOrderBook is AccessControl {
                 uint256(askPrice),
                 m
             );
+            capacityNeed += extra;
         }
 
         if (capacityNeed > _freeETH(pool)) revert PassiveQuoteExceedsCapacity();
@@ -674,46 +781,10 @@ contract FuturesOrderBook is AccessControl {
     }
 
     // =========================================================
-    // Synthetic (optional)
-    // =========================================================
-
-    function replaceSyntheticImbalanceOrder(
-        bytes32 marketKey,
-        bool active,
-        Side makerSide,
-        uint256 amount,
-        uint256 execPrice
-    ) external onlyRole(SETTLEMENT_MANAGER_ROLE) {
-        if (!active || amount == 0) {
-            synthetic[marketKey] = SyntheticImbalance({
-                active: false,
-                makerSide: Side.Buy,
-                price: 0,
-                amount: 0,
-                updatedAt: block.timestamp
-            });
-            emit SyntheticReplaced(marketKey, false, Side.Buy, 0, 0);
-            return;
-        }
-
-        if (execPrice == 0) revert InvalidPrice();
-
-        synthetic[marketKey] = SyntheticImbalance({
-            active: true,
-            makerSide: makerSide,
-            price: execPrice,
-            amount: amount,
-            updatedAt: block.timestamp
-        });
-
-        emit SyntheticReplaced(marketKey, true, makerSide, amount, execPrice);
-    }
-
-    // =========================================================
     // Matching
     // =========================================================
 
-    function _match(uint256 takerOrderId, FuturesContract.MarketConfig memory m) internal {
+    function _match(uint256 takerOrderId, FuturesTypes.MarketConfig memory m) internal {
         Order storage taker = ordersById[takerOrderId];
         if (taker.orderId == 0 || taker.amount == 0) return;
         if (block.timestamp > taker.expiry) return;
@@ -776,8 +847,8 @@ contract FuturesOrderBook is AccessControl {
             // ---------------------------------------------------------------------
             // 4) Apply fills & consume opening margin from the order's locked pot
             // ---------------------------------------------------------------------
-            _applyFillToUserAndConsumeMargin(taker, tradeAmt, m);
-            _applyFillToUserAndConsumeMargin(maker, tradeAmt, m);
+            _applyFillToUserAndConsumeMargin(taker, tradeAmt, execPrice, m);
+            _applyFillToUserAndConsumeMargin(maker, tradeAmt, execPrice, m);
 
             taker.amount -= tradeAmt;
             maker.amount -= tradeAmt;
@@ -810,17 +881,14 @@ contract FuturesOrderBook is AccessControl {
         if (taker.amount > 0) {
             _matchAgainstPassive(takerOrderId, m);
         }
-
-        if (taker.amount > 0) {
-            _matchAgainstSynthetic(takerOrderId, m);
-        }
     }
 
-    /// Passive MM is treated as backstop liquidity:
-    /// real user orders match first, then passive MM, then synthetic imbalance.
+    /// real user orders match first, then passive MM.
+    /// Imbalance matching is handled by matchImbalance().
+
     function _matchAgainstPassive(
         uint256 takerOrderId,
-        FuturesContract.MarketConfig memory m
+        FuturesTypes.MarketConfig memory m
     ) internal {
         Order storage taker = ordersById[takerOrderId];
         if (taker.orderId == 0 || taker.amount == 0) return;
@@ -862,19 +930,25 @@ contract FuturesOrderBook is AccessControl {
             return;
         }
 
-        // pool side uses free ETH + close-aware open margin
-        if (
-            !_canAffordPassiveMakerFill(
-                pool,
-                taker.marketKey,
-                passiveMakerSide,
-                tradeAmt,
-                execPrice,
-                m
-            )
-        ) {
+        // pool side uses free ETH + close-aware open margin.
+        // Unlike normal orders, passive quotes have no order-level collateral pot,
+        // so create the exact fill collateral pot just-in-time.
+        (uint256 passiveOpenMarginReq, uint256 passiveNeed) = _passiveMakerFillNeed(
+            pool,
+            taker.marketKey,
+            passiveMakerSide,
+            tradeAmt,
+            execPrice,
+            m
+        );
+
+        if (_freeETH(pool) < passiveNeed) {
             return;
         }
+
+        // Lock the full passive fill need before variation settlement.
+        // This covers both adverse variation and any newly opened margin.
+        _lockTokenOrETH(pool, address(0), passiveNeed);
 
         // variation settlement between taker order and passive pool
         _settleVariationBetweenOrderAndAddress(taker, pool, tradeAmt, execPrice, m);
@@ -882,10 +956,18 @@ contract FuturesOrderBook is AccessControl {
         uint256 feeCharged = _chargeFeesForFillExact(taker, taker.user, tradeAmt);
 
         // apply taker using existing order-collateral path
-        _applyFillToUserAndConsumeMargin(taker, tradeAmt, m);
+        _applyFillToUserAndConsumeMargin(taker, tradeAmt, execPrice, m);
 
         // apply passive maker using direct account path
-        _applyFillToUserDirectAndLockMargin(pool, taker.marketKey, passiveMakerSide, tradeAmt, m);
+        _applyFillToUserDirectWithPrelockedMargin(
+            pool,
+            taker.marketKey,
+            passiveMakerSide,
+            tradeAmt,
+            execPrice,
+            m,
+            passiveOpenMarginReq
+        );
 
         taker.amount -= tradeAmt;
 
@@ -912,107 +994,36 @@ contract FuturesOrderBook is AccessControl {
         }
     }
 
-    function _matchAgainstSynthetic(
-        uint256 takerOrderId,
-        FuturesContract.MarketConfig memory m
-    ) internal {
-        Order storage taker = ordersById[takerOrderId];
-        if (taker.orderId == 0 || taker.amount == 0) return;
-
-        SyntheticImbalance storage s = synthetic[taker.marketKey];
-        if (!s.active || s.amount == 0) return;
-        if (s.makerSide == taker.side) return;
-
-        uint256 tradeAmt = taker.amount < s.amount ? taker.amount : s.amount;
-        if (tradeAmt == 0) return;
-
-        uint256 execPrice = s.price;
-        if (execPrice == 0) revert SyntheticInvalidPrice();
-
-        // If taker can't afford against settlement drift, cancel taker and stop.
-        if (!_canAffordFillSynthetic(taker, tradeAmt, execPrice, m)) {
-            _cancelTakerUnsafe(takerOrderId);
-            return;
-        }
-
-        // NOTE: synthetic path currently does NOT settle variation transfers.
-
-        // only user pays fees (synthetic pays none)
-        uint256 feeCharged = _chargeFeesForFillExact(taker, taker.user, tradeAmt);
-
-        _applyFillToUserAndConsumeMargin(taker, tradeAmt, m);
-
-        taker.amount -= tradeAmt;
-        s.amount -= tradeAmt;
-
-        emit OrderMatchedWithSynthetic(
-            taker.orderId,
-            taker.marketKey,
-            tradeAmt,
-            execPrice,
-            s.makerSide,
-            feeCharged
-        );
-        emit SyntheticConsumed(taker.marketKey, tradeAmt, s.amount);
-
-        if (s.amount == 0) s.active = false;
-    }
-
-    /// @dev Close opposite exposure first (always allowed), then open remainder if market active.
-    /// Consumes the order's locked collateral pot ONLY for the opened remainder's margin.
-    /// Returns amountOpened.
     function _applyFillToUserAndConsumeMargin(
         Order storage o,
         uint256 tradeAmt,
-        FuturesContract.MarketConfig memory m
+        uint256 execPrice,
+        FuturesTypes.MarketConfig memory m
     ) internal returns (uint256 amountOpened) {
-        bool wantLong = (o.side == Side.Buy);
-        bool isLongToClose = !wantLong; // Buy closes shorts; Sell closes longs
+        FuturesTypes.PositionSide tradeSide = _tradeSide(o.side);
 
-        // 1) Close opposite if any (ledger reduced; vault stays locked)
-        (uint256 closedAmt, ) = _closeOppositeIfAny(o.user, o.marketKey, isLongToClose, tradeAmt);
+        FuturesTypes.Position memory p = futures.getPosition(o.user, o.marketKey);
 
-        uint256 remaining = tradeAmt - closedAmt;
-        if (remaining == 0) return 0;
-
-        if (!futures.marketActive(o.marketKey)) revert MarketIsClosed();
-
-        // Opening margin uses CURRENT settlement reference
-        uint256 marginReq = _initialMarginRequired(o.marketKey, remaining, m.lastSettlementPrice);
-
-        _consumeLockedCollateral(o, marginReq);
-
-        futures.openPosition(o.user, o.marketKey, remaining, marginReq, wantLong);
-        return remaining;
-    }
-
-    /// @dev Close up to `maxClose` on an existing position (ledger only).
-    /// Returns (closedSize, marginDebitedFromLedger).
-    ///
-    /// IMPORTANT:
-    /// - Do NOT unlock in the vault here. Vault is a single locked pool.
-    /// - We only reduce ledger margin; custody remains locked and is managed by SettlementManager / user actions.
-    function _closeOppositeIfAny(
-        address user,
-        bytes32 marketKey,
-        bool isLongPositionToClose,
-        uint256 maxClose
-    ) internal returns (uint256 closeAmt, uint256 closeMargin) {
-        FuturesContract.Position memory p = futures.getPosition(
-            user,
-            marketKey,
-            isLongPositionToClose
-        );
-        if (!p.isActive || p.size == 0 || maxClose == 0) return (0, 0);
-
-        closeAmt = (p.size < maxClose) ? p.size : maxClose;
-        closeMargin = (p.margin * closeAmt) / p.size;
-
-        if (closeMargin > 0) {
-            futures.adjustMargin(user, marketKey, isLongPositionToClose, -int256(closeMargin));
-            _unlockTokenOrETH(user, address(0), closeMargin);
+        uint256 closeAmt = 0;
+        if (_isOppositePosition(p, tradeSide)) {
+            closeAmt = p.size < tradeAmt ? p.size : tradeAmt;
         }
-        futures.reducePosition(user, marketKey, closeAmt, isLongPositionToClose);
+
+        amountOpened = tradeAmt - closeAmt;
+
+        uint256 marginReq = 0;
+
+        if (amountOpened > 0) {
+            if (!futures.marketActive(o.marketKey)) revert MarketIsClosed();
+
+            marginReq = _initialMarginRequired(o.marketKey, amountOpened, m.lastSettlementPrice);
+
+            _consumeLockedCollateral(o, marginReq);
+        }
+
+        futures.processTrade(o.user, o.marketKey, tradeSide, tradeAmt, marginReq, execPrice);
+
+        return amountOpened;
     }
 
     function _expireCancelMaker(uint256[] storage book, uint256 index, uint256 makerId) internal {
@@ -1046,7 +1057,7 @@ contract FuturesOrderBook is AccessControl {
         Order storage o,
         uint256 tradeAmt,
         uint256 execPrice,
-        FuturesContract.MarketConfig memory m
+        FuturesTypes.MarketConfig memory m
     ) internal view returns (bool) {
         if (o.orderId == 0 || o.amount == 0) return false;
         if (tradeAmt == 0) return true;
@@ -1070,37 +1081,11 @@ contract FuturesOrderBook is AccessControl {
         return available >= need;
     }
 
-    /// @dev Synthetic match affordability:
-    /// - In current synthetic path we do not settle variation,
-    ///   so require opening margin for the OPEN portion only.
-    function _canAffordFillSynthetic(
-        Order storage o,
-        uint256 tradeAmt,
-        uint256 /*execPrice*/,
-        FuturesContract.MarketConfig memory m
-    ) internal view returns (bool) {
-        if (o.orderId == 0 || o.amount == 0) return false;
-        if (tradeAmt == 0) return true;
-
-        (uint256 closeAmt, ) = _closeView(o, tradeAmt);
-        uint256 openAmt = tradeAmt - closeAmt;
-
-        uint256 openMarginReq = 0;
-        if (openAmt > 0) {
-            openMarginReq = _initialMarginRequired(o.marketKey, openAmt, m.lastSettlementPrice);
-        }
-
-        uint256 available =
-            (o.collateralLocked > o.collateralSpent) ? (o.collateralLocked - o.collateralSpent) : 0;
-
-        return available >= openMarginReq;
-    }
-
     function _adverseVariationForOrder(
         Order storage o,
         uint256 tradeAmt,
         uint256 execPrice,
-        FuturesContract.MarketConfig memory m
+        FuturesTypes.MarketConfig memory m
     ) internal view returns (uint256) {
         uint256 settleNorm = _normalizePrice(
             m.lastSettlementPrice,
@@ -1122,26 +1107,6 @@ contract FuturesOrderBook is AccessControl {
         return (diff * tradeAmt * m.multiplier) / denom;
     }
 
-    function _canAffordPassiveMakerFill(
-        address makerUser,
-        bytes32 marketKey,
-        Side makerSide,
-        uint256 tradeAmt,
-        uint256 execPrice,
-        FuturesContract.MarketConfig memory m
-    ) internal view returns (bool) {
-        uint256 need = _passiveMakerFillNeed(
-            makerUser,
-            marketKey,
-            makerSide,
-            tradeAmt,
-            execPrice,
-            m
-        );
-
-        return _freeETH(makerUser) >= need;
-    }
-
     function _passiveQuoteIsReduceOnly(
         address makerUser,
         bytes32 marketKey,
@@ -1161,9 +1126,9 @@ contract FuturesOrderBook is AccessControl {
         Side makerSide,
         uint256 tradeAmt,
         uint256 execPrice,
-        FuturesContract.MarketConfig memory m
-    ) internal view returns (uint256) {
-        if (tradeAmt == 0) return 0;
+        FuturesTypes.MarketConfig memory m
+    ) internal view returns (uint256 openMarginReq, uint256 totalNeed) {
+        if (tradeAmt == 0) return (0, 0);
 
         (uint256 closeAmt, ) = _closeViewForAccount(makerUser, marketKey, makerSide, tradeAmt);
 
@@ -1171,20 +1136,18 @@ contract FuturesOrderBook is AccessControl {
 
         uint256 adverseVariation = _adverseVariationForAccount(makerSide, tradeAmt, execPrice, m);
 
-        uint256 openMarginReq = 0;
-
         if (openAmt > 0) {
             openMarginReq = _initialMarginRequired(marketKey, openAmt, m.lastSettlementPrice);
         }
 
-        return adverseVariation + openMarginReq;
+        totalNeed = adverseVariation + openMarginReq;
     }
 
     function _adverseVariationForAccount(
         Side side,
         uint256 tradeAmt,
         uint256 execPrice,
-        FuturesContract.MarketConfig memory m
+        FuturesTypes.MarketConfig memory m
     ) internal pure returns (uint256) {
         uint256 settleNorm = _normalizePrice(
             m.lastSettlementPrice,
@@ -1210,7 +1173,7 @@ contract FuturesOrderBook is AccessControl {
         address passiveUser,
         uint256 tradeAmt,
         uint256 execPrice,
-        FuturesContract.MarketConfig memory m
+        FuturesTypes.MarketConfig memory m
     ) internal {
         uint256 settleNorm = _normalizePrice(
             m.lastSettlementPrice,
@@ -1255,37 +1218,51 @@ contract FuturesOrderBook is AccessControl {
         }
     }
 
-    function _applyFillToUserDirectAndLockMargin(
+    function _applyFillToUserDirectWithPrelockedMargin(
         address user,
         bytes32 marketKey,
         Side side,
         uint256 tradeAmt,
-        FuturesContract.MarketConfig memory m
+        uint256 execPrice,
+        FuturesTypes.MarketConfig memory m,
+        uint256 prelockedMarginReq
     ) internal returns (uint256 amountOpened) {
-        bool wantLong = (side == Side.Buy);
-        bool isLongToClose = !wantLong; // Buy closes shorts; Sell closes longs
+        FuturesTypes.PositionSide tradeSide = _tradeSide(side);
 
-        (uint256 closedAmt, ) = _closeOppositeIfAny(user, marketKey, isLongToClose, tradeAmt);
+        FuturesTypes.Position memory p = futures.getPosition(user, marketKey);
 
-        uint256 remaining = tradeAmt - closedAmt;
-        if (remaining == 0) return 0;
+        uint256 closeAmt = 0;
+        if (_isOppositePosition(p, tradeSide)) {
+            closeAmt = p.size < tradeAmt ? p.size : tradeAmt;
+        }
 
-        if (!futures.marketActive(marketKey)) revert MarketIsClosed();
+        amountOpened = tradeAmt - closeAmt;
 
-        uint256 marginReq = _initialMarginRequired(marketKey, remaining, m.lastSettlementPrice);
+        uint256 marginReq = 0;
 
-        // passive maker locks margin directly from free vault balance at fill time
-        _lockTokenOrETH(user, address(0), marginReq);
+        if (amountOpened > 0) {
+            if (!futures.marketActive(marketKey)) revert MarketIsClosed();
 
-        futures.openPosition(user, marketKey, remaining, marginReq, wantLong);
-        return remaining;
+            marginReq = _initialMarginRequired(marketKey, amountOpened, m.lastSettlementPrice);
+
+            // Do not lock here.
+            // The passive path already locked adverse variation + opening margin.
+            if (marginReq != prelockedMarginReq) revert PassiveCollateralMismatch();
+        } else {
+            if (prelockedMarginReq != 0) revert PassiveCollateralMismatch();
+        }
+
+        futures.processTrade(user, marketKey, tradeSide, tradeAmt, marginReq, execPrice);
+
+        return amountOpened;
     }
+
     function _settleVariationBetween(
         Order storage taker,
         Order storage maker,
         uint256 tradeAmt,
         uint256 execPrice,
-        FuturesContract.MarketConfig memory m
+        FuturesTypes.MarketConfig memory m
     ) internal {
         uint256 settleNorm = _normalizePrice(
             m.lastSettlementPrice,
@@ -1367,19 +1344,16 @@ contract FuturesOrderBook is AccessControl {
     ) internal view returns (uint256 closeAmt, uint256 closeMargin) {
         if (tradeAmt == 0) return (0, 0);
 
-        // BUY closes shorts; SELL closes longs
-        bool isLongPositionToClose = (o.side == Side.Sell);
+        FuturesTypes.Position memory p = futures.getPosition(o.user, o.marketKey);
 
-        FuturesContract.Position memory p = futures.getPosition(
-            o.user,
-            o.marketKey,
-            isLongPositionToClose
-        );
+        FuturesTypes.PositionSide tradeSide = _tradeSide(o.side);
 
-        if (!p.isActive || p.size == 0) return (0, 0);
+        if (!_isOppositePosition(p, tradeSide)) {
+            return (0, 0);
+        }
 
         closeAmt = p.size < tradeAmt ? p.size : tradeAmt;
-        closeMargin = (p.margin * closeAmt) / p.size; // pro-rata margin release (ledger-only)
+        closeMargin = (p.margin * closeAmt) / p.size;
     }
 
     function _closeViewForAccount(
@@ -1390,16 +1364,13 @@ contract FuturesOrderBook is AccessControl {
     ) internal view returns (uint256 closeAmt, uint256 closeMargin) {
         if (tradeAmt == 0) return (0, 0);
 
-        // BUY closes shorts; SELL closes longs
-        bool isLongPositionToClose = (side == Side.Sell);
+        FuturesTypes.Position memory p = futures.getPosition(user, marketKey);
 
-        FuturesContract.Position memory p = futures.getPosition(
-            user,
-            marketKey,
-            isLongPositionToClose
-        );
+        FuturesTypes.PositionSide tradeSide = _tradeSide(side);
 
-        if (!p.isActive || p.size == 0) return (0, 0);
+        if (!_isOppositePosition(p, tradeSide)) {
+            return (0, 0);
+        }
 
         closeAmt = p.size < tradeAmt ? p.size : tradeAmt;
         closeMargin = (p.margin * closeAmt) / p.size;
@@ -1475,7 +1446,7 @@ contract FuturesOrderBook is AccessControl {
                     feeOrder.fixedFeeToken,
                     feeOrder.fixedFeeTotal,
                     "futures_trade_fee_fixed",
-                    true
+                    feeOrder.referrer
                 );
                 chargedThisStep += feeOrder.fixedFeeTotal;
             }
@@ -1496,7 +1467,7 @@ contract FuturesOrderBook is AccessControl {
                     feeOrder.pctFeeToken,
                     remainder,
                     "futures_trade_fee_pct",
-                    false
+                    feeOrder.referrer
                 );
                 feeOrder.pctFeeCharged = feeOrder.pctFeeTotal;
                 chargedThisStep += remainder;
@@ -1507,12 +1478,121 @@ contract FuturesOrderBook is AccessControl {
         uint256 pctTargetAfter = (feeOrder.pctFeeTotal * filledAfter) / feeOrder.initial;
         if (pctTargetAfter > feeOrder.pctFeeCharged) {
             uint256 delta = pctTargetAfter - feeOrder.pctFeeCharged;
-            vault.chargeFee(feePayer, feeOrder.pctFeeToken, delta, "futures_trade_fee_pct", false);
+            vault.chargeFee(
+                feePayer,
+                feeOrder.pctFeeToken,
+                delta,
+                "futures_trade_fee_pct",
+                feeOrder.referrer
+            );
             feeOrder.pctFeeCharged = pctTargetAfter;
             chargedThisStep += delta;
         }
 
         return chargedThisStep;
+    }
+
+    function _chargeFeesForImbalanceFillExact(
+        Order storage feeOrder,
+        address feePayer,
+        address rewardAccount,
+        uint256 matchSize
+    ) internal returns (uint256 totalFee, uint256 callerReward, uint256 protocolFee) {
+        if (rewardAccount == address(0)) revert ZeroAddress();
+
+        if (!feeOrder.fixedFeeCharged) {
+            if (feeOrder.fixedFeeTotal > 0) {
+                (uint256 reward, uint256 protocol) = _splitImbalanceFee(
+                    feePayer,
+                    rewardAccount,
+                    feeOrder.fixedFeeToken,
+                    feeOrder.fixedFeeTotal,
+                    "futures_imbalance_trade_fee_fixed",
+                    feeOrder.referrer
+                );
+
+                callerReward += reward;
+                protocolFee += protocol;
+                totalFee += feeOrder.fixedFeeTotal;
+            }
+
+            feeOrder.fixedFeeCharged = true;
+        }
+
+        if (feeOrder.pctFeeTotal == 0) {
+            return (totalFee, callerReward, protocolFee);
+        }
+
+        uint256 filledBefore = feeOrder.initial - feeOrder.amount;
+        uint256 filledAfter = filledBefore + matchSize;
+
+        uint256 pctToCharge;
+
+        if (filledAfter >= feeOrder.initial) {
+            pctToCharge = feeOrder.pctFeeTotal - feeOrder.pctFeeCharged;
+            feeOrder.pctFeeCharged = feeOrder.pctFeeTotal;
+        } else {
+            uint256 pctTargetAfter = (feeOrder.pctFeeTotal * filledAfter) / feeOrder.initial;
+
+            if (pctTargetAfter > feeOrder.pctFeeCharged) {
+                pctToCharge = pctTargetAfter - feeOrder.pctFeeCharged;
+                feeOrder.pctFeeCharged = pctTargetAfter;
+            }
+        }
+
+        if (pctToCharge > 0) {
+            (uint256 reward, uint256 protocol) = _splitImbalanceFee(
+                feePayer,
+                rewardAccount,
+                feeOrder.pctFeeToken,
+                pctToCharge,
+                "futures_imbalance_trade_fee_pct",
+                feeOrder.referrer
+            );
+
+            callerReward += reward;
+            protocolFee += protocol;
+            totalFee += pctToCharge;
+        }
+
+        return (totalFee, callerReward, protocolFee);
+    }
+
+    function _splitImbalanceFee(
+        address feePayer,
+        address rewardAccount,
+        address feeToken,
+        uint256 amount,
+        string memory reason,
+        address referrer
+    ) internal returns (uint256 reward, uint256 protocolFee) {
+        if (amount == 0) return (0, 0);
+
+        reward = (amount * imbalanceCallerFeeShareBps) / 10_000;
+        protocolFee = amount - reward;
+
+        if (reward > 0) {
+            if (feeToken == address(0)) {
+                vault.transferETH(
+                    feePayer,
+                    rewardAccount,
+                    reward,
+                    "futures_imbalance_match_reward"
+                );
+            } else {
+                vault.transferToken(
+                    feePayer,
+                    rewardAccount,
+                    feeToken,
+                    reward,
+                    "futures_imbalance_match_reward"
+                );
+            }
+        }
+
+        if (protocolFee > 0) {
+            vault.chargeFee(feePayer, feeToken, protocolFee, reason, referrer);
+        }
     }
 
     // =========================================================
@@ -1530,7 +1610,7 @@ contract FuturesOrderBook is AccessControl {
         uint256 size,
         uint256 rawPrice
     ) internal view returns (uint256) {
-        FuturesContract.MarketConfig memory m = futures.getMarket(marketKey);
+        FuturesTypes.MarketConfig memory m = futures.getMarket(marketKey);
         uint256 priceNorm = _normalizePrice(rawPrice, m.oraclePriceDecimals, m.marginDecimals);
         uint256 denom = 10 ** uint256(m.marginDecimals);
         return (size * m.multiplier * priceNorm) / denom;
@@ -1543,7 +1623,7 @@ contract FuturesOrderBook is AccessControl {
         uint256 limitPrice,
         uint256 settlementPrice
     ) internal view returns (uint256) {
-        FuturesContract.MarketConfig memory m = futures.getMarket(marketKey);
+        FuturesTypes.MarketConfig memory m = futures.getMarket(marketKey);
 
         uint256 limitNorm = _normalizePrice(limitPrice, m.oraclePriceDecimals, m.marginDecimals);
         uint256 settleNorm = _normalizePrice(
@@ -1570,7 +1650,7 @@ contract FuturesOrderBook is AccessControl {
         uint256 size,
         uint256 rawPrice
     ) internal view returns (uint256) {
-        FuturesContract.MarketConfig memory m = futures.getMarket(marketKey);
+        FuturesTypes.MarketConfig memory m = futures.getMarket(marketKey);
 
         uint256 priceNorm = _normalizePrice(rawPrice, m.oraclePriceDecimals, m.marginDecimals);
 
@@ -1723,5 +1803,22 @@ contract FuturesOrderBook is AccessControl {
             book[i] = book[i + 1];
         }
         book.pop();
+    }
+
+    function _tradeSide(Side side) internal pure returns (FuturesTypes.PositionSide) {
+        return side == Side.Buy ? FuturesTypes.PositionSide.Long : FuturesTypes.PositionSide.Short;
+    }
+
+    function _isOpenPosition(FuturesTypes.Position memory p) internal pure returns (bool) {
+        return (p.size > 0 &&
+            (p.side == FuturesTypes.PositionSide.Long ||
+                p.side == FuturesTypes.PositionSide.Short));
+    }
+
+    function _isOppositePosition(
+        FuturesTypes.Position memory p,
+        FuturesTypes.PositionSide tradeSide
+    ) internal pure returns (bool) {
+        return _isOpenPosition(p) && p.side != tradeSide;
     }
 }

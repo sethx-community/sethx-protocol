@@ -492,6 +492,14 @@ contract RiskModule is AccessControl {
             return;
         }
 
+        // Imbalance matching is a maintenance call. The caller account receives
+        // a fee-share reward but does not open, close, or resize its own
+        // position, so it is safe for restricted accounts as long as the target
+        // is an approved FuturesOrderBook.
+        if (selector == FuturesOrderBook.matchImbalance.selector) {
+            return;
+        }
+
         revert BadFuturesOrderAction();
     }
 
@@ -514,7 +522,6 @@ contract RiskModule is AccessControl {
     ) internal view {
         if (
             selector == MarginOptionsOrderBook.placeOrder.selector ||
-            selector == MarginOptionsOrderBook.placeOrderForMarket.selector ||
             selector == MarginOptionsOrderBook.acceptOrder.selector
         ) {
             if (!valuationModule.canTrade(account, riskLevel)) revert TradeDisallowed();
@@ -542,7 +549,6 @@ contract RiskModule is AccessControl {
     ) internal view {
         if (
             selector == BinaryMarginOptionsOrderBook.placeOrder.selector ||
-            selector == BinaryMarginOptionsOrderBook.placeOrderForMarket.selector ||
             selector == BinaryMarginOptionsOrderBook.acceptOrder.selector
         ) {
             if (!valuationModule.canTrade(account, riskLevel)) revert TradeDisallowed();

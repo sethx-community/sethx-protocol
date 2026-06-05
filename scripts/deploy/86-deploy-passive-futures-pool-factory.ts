@@ -1,3 +1,5 @@
+import { safeDeployContract } from "./safe-deploy-contract.js";
+
 export async function deployPassiveFuturesPoolFactory(
   ethers: any,
   deployment: {
@@ -11,19 +13,13 @@ export async function deployPassiveFuturesPoolFactory(
 ) {
   const [deployer] = await ethers.getSigners();
 
-  const PassiveFuturesPoolFactory = await ethers.getContractFactory(
-    "PassiveFuturesPoolFactory",
-  );
-
-  const factory = await PassiveFuturesPoolFactory.deploy(
+  const factory = await safeDeployContract(ethers, "PassiveFuturesPoolFactory", [
     deployment.addresses.futuresContract,
     deployment.addresses.sethxVault,
     deployment.addresses.accountRegistry,
     deployment.addresses.futuresOrderBook,
     await deployer.getAddress(),
-  );
-
-  await factory.waitForDeployment();
+  ]);
 
   return {
     addresses: {

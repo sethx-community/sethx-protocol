@@ -6,12 +6,23 @@ export interface LocalDeploymentOutput {
   chainId: string;
   deployedAt: string;
   updatedAt?: string;
-  founderAddress: string;
-  founderReleaseTime: string;
+  founderAddress?: string;
+  founderAddresses?: string[];
+  founderReleaseTime?: string;
 
   addresses: {
     sethxToken: string;
-    founderTokenTimelock: string;
+    founderTokenTimelock?: string;
+    founderTokenTimelocks?: {
+      id: string;
+      founderIndex: number;
+      beneficiary: string;
+      releaseDelaySeconds: string;
+      releaseTime: string;
+      allocationBps: string;
+      allocation: string;
+      address: string;
+    }[];
     treasuryAuthority: string;
     protocolTreasury: string;
 
@@ -40,7 +51,6 @@ export interface LocalDeploymentOutput {
     futuresContract?: string;
     futuresOrderBook?: string;
 
-    settlementManager?: string;
 
     lendingContract?: string;
     lendingOrderBook?: string;
@@ -66,6 +76,11 @@ export interface LocalDeploymentOutput {
   tokenDistribution: {
     totalSupply: string;
     founderAmount: string;
+    founderTimelockTotal?: string;
+    founderTimelocks?: {
+      address: string;
+      allocation: string;
+    }[];
     treasuryAmount: string;
   };
 
@@ -124,7 +139,7 @@ export function requireLocalAddress(
 ): string {
   const address = deployment.addresses[name];
 
-  if (!address) {
+  if (typeof address !== "string" || address.length === 0) {
     throw new Error(`Missing deployment address: ${String(name)}`);
   }
 

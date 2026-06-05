@@ -1,0 +1,608 @@
+{
+  "environment": "mainnet",
+  "chainId": "1",
+  "deployedAt": "2026-06-02T19:55:11.000Z",
+  "founderAddresses": [
+    "0x313F940b838919b23166aa2d705E3c447D26AFF7",
+    "0x9E8f482B2d55e62a8DF0DDB89D96912DDaC73f71",
+    "0x114D075560F21e90C8d3340abc804A3900157dA1"
+  ],
+  "addresses": {
+    "sethxToken": "0xd603b12f7458d44ddf30e48e72c640c9b6f9d61f",
+    "founderTokenTimelocks": [
+      {
+        "id": "founder-1-63072000s",
+        "founderIndex": 0,
+        "beneficiary": "0x313F940b838919b23166aa2d705E3c447D26AFF7",
+        "releaseDelaySeconds": "63072000",
+        "releaseTime": "1843502111",
+        "allocationBps": "350",
+        "allocation": "35000000000000000000000000",
+        "address": "0x0eb8ad5a29e8b0b9d8bc881b0616cdfd18dbab5c"
+      },
+      {
+        "id": "founder-1-157680000s",
+        "founderIndex": 0,
+        "beneficiary": "0x313F940b838919b23166aa2d705E3c447D26AFF7",
+        "releaseDelaySeconds": "157680000",
+        "releaseTime": "1938110111",
+        "allocationBps": "350",
+        "allocation": "35000000000000000000000000",
+        "address": "0xcfce437e96446cd267a2065fb061e7bb84ba9ee9"
+      },
+      {
+        "id": "founder-2-63072000s",
+        "founderIndex": 1,
+        "beneficiary": "0x9E8f482B2d55e62a8DF0DDB89D96912DDaC73f71",
+        "releaseDelaySeconds": "63072000",
+        "releaseTime": "1843502111",
+        "allocationBps": "350",
+        "allocation": "35000000000000000000000000",
+        "address": "0x7ecb3cfe513fc5d50dfd1e692eb238b9ac16e4ba"
+      },
+      {
+        "id": "founder-2-157680000s",
+        "founderIndex": 1,
+        "beneficiary": "0x9E8f482B2d55e62a8DF0DDB89D96912DDaC73f71",
+        "releaseDelaySeconds": "157680000",
+        "releaseTime": "1938110111",
+        "allocationBps": "350",
+        "allocation": "35000000000000000000000000",
+        "address": "0x79db98abb1010fb4ac01a3190ad0e58c86b280e5"
+      },
+      {
+        "id": "founder-3-63072000s",
+        "founderIndex": 2,
+        "beneficiary": "0x114D075560F21e90C8d3340abc804A3900157dA1",
+        "releaseDelaySeconds": "63072000",
+        "releaseTime": "1843502111",
+        "allocationBps": "350",
+        "allocation": "35000000000000000000000000",
+        "address": "0x32bb020af61c9989cf548cea9e1535f832fd264e"
+      },
+      {
+        "id": "founder-3-157680000s",
+        "founderIndex": 2,
+        "beneficiary": "0x114D075560F21e90C8d3340abc804A3900157dA1",
+        "releaseDelaySeconds": "157680000",
+        "releaseTime": "1938110111",
+        "allocationBps": "350",
+        "allocation": "35000000000000000000000000",
+        "address": "0x919ed980d36c4731bbae285c738384178eb545b2"
+      }
+    ],
+    "treasuryAuthority": "0x5c396c7d1ac1701c37ea696a4589a9b1ed5352f7",
+    "protocolTreasury": "0xf11d44d2e793e3d30509bc8c2a224398b27b61ef",
+    "sethxTimelock": "0x5fa4E0674Dff940A07f097195De83Dfd14257e48",
+    "sethxGovernor": "0x85b887426f7B27Fba11DbD94c722a70242A81691",
+    "accountRegistry": "0x38D4F2F307657Cc6972711fb1cA52071E9805e12",
+    "sethxVault": "0x2D598EEe72cBEAf2Fa020D1c068051D4801Ba3D4",
+    "priceManager": "0xA712C58cF895E7e61b58cfdFE0d8114e89348466",
+    "feeManager": "0x3ed08Faf6b891f2Ca2736248bEd3A0E913cdcbeE",
+    "tokenSpotOrderBook": "0x772785E3F84Ee14341FddCD6196ad0Daa977ed32",
+    "nftSpotOrderBook": "0x87935d67FfEA9179d8B308b579409aF23C119D3F",
+    "optionContract": "0xf549EE616B30fd128dC11797Bdb0E0664697A428",
+    "optionsOrderBook": "0x53a30A181F680575E5f0e5E37258d890087dA724",
+    "binaryMarginOptionContract": "0x3A7C03648081f0aCDe8bcD6436A2D286c6C297ae",
+    "binaryMarginOptionsOrderBook": "0xD94CF444314279A88FEc8167912B9eE4310bbaFb",
+    "marginOptionContract": "0x79fC4fA292c5451c0e6ff22EC3fe249CBECCf344",
+    "marginOptionsOrderBook": "0xBCcC49F3FDf0b3da79DFf8cc7a947Fccd3954529",
+    "futuresPositionStore": "0x9648BEb66cA9f1c1Dfdc432B68730d11f1313A36",
+    "futuresContract": "0x46977c7125Df736F16822aad14C7499A33A157fa",
+    "futuresOrderBook": "0xFF842278cdBDA0Be408aFb657712EC194CfA14E6",
+    "lendingContract": "0xC9B4Afe942F1cfBb20fBf28D32d4218162e0Eccb",
+    "lendingOrderBook": "0x51572293e989e1B5b1C58b497ad5De8d99997638",
+    "optionsValuationAdapter": "0x1dBd8b5e93579F12126E95970bF557EA94064b8e",
+    "futuresValuationAdapter": "0x8691Cef4452Fa8B62858954e9946E1BC0a0366FD",
+    "valuationModule": "0x1ED0b607F3bc504a956fdEB56eB16B6917593DcD",
+    "riskModule": "0x546b9fC3960437271EceEcEfed0afD443bA22A13",
+    "liquidationEngine": "0x22E5584D24A7aEf3E372498E6B4D012d290c3A08",
+    "accountFactory": "0x599298246488e79e30b73f083a980F1561F1E347",
+    "lendingAccountFactory": "0xA0481fF3Be07142A860fbB5BeD6d79C5bb2eC17D",
+    "treasuryPaymentsModule": "0xC4416a553bbe06C2aFbf367801F7CF12a3d864D9",
+    "treasuryVaultModule": "0xdAEcA5ad0CeE6d197039CDAF3fEF25ea3edd7879",
+    "treasuryTradeModule": "0xAFC436afFe98164d36de81AACaAce6EbD2954Ea7",
+    "treasuryFuturesMaintenanceModule": "0x06A3326D6a77488ad7AE1e5E010AbF075966C589",
+    "sethxFeeConversionOracle": "0xF6CC59b7086C7AD12b1989EbeCF313222567181C",
+    "usdcToken": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "usdcEthFeed": "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4",
+    "usdcEthOracle": "0x6786D468D6d1Eb1461Ac80d61058270Cca67d9E2",
+    "passiveFuturesSnapshotPublisher": "0x6AF55Bc18D06368f8D7D13d6e2f36B3A42F596A4",
+    "passiveFuturesPoolFactory": "0xa17784eC210E72d2612eaBdB1A1691101fDD92cE"
+  },
+  "updatedAt": "2026-06-05T07:00:25.445Z",
+  "recovery": {
+    "recoveredFromTokenDeploymentTx": "0x34a2368a7f1b39245876cc005e680d0bc33682684632ff8b63e4cf0f5c190afe",
+    "recoveredSethxToken": "0xd603b12f7458d44ddf30e48e72c640c9b6f9d61f",
+    "recoveredFirstFounderTimelockTx": "0x17a326a95ea593101da2905b94bea4941c8b882e608c226c4b8f59da3bc0ebe4",
+    "recoveredFirstFounderTimelock": "0x0eb8ad5a29e8b0b9d8bc881b0616cdfd18dbab5c",
+    "recoveredAt": "2026-06-02T20:20:02.738Z"
+  },
+  "stages": {
+    "10": {
+      "completedAt": "2026-06-02T20:34:49.978Z",
+      "description": "Recovered token distribution after treasury mint by minting founder allocations and finishing minting"
+    },
+    "20": {
+      "completedAt": "2026-06-03T14:07:18.098Z",
+      "description": "Deploy SethxTimelock and SethxGovernor"
+    },
+    "21": {
+      "completedAt": "2026-06-03T14:10:14.297Z",
+      "description": "Configure Timelock proposer, canceller, executor, and keep deployer admin until final handoff"
+    },
+    "30": {
+      "completedAt": "2026-06-03T15:18:10.329Z",
+      "description": "Deploy AccountRegistry and SethxVault"
+    },
+    "40": {
+      "completedAt": "2026-06-03T20:27:18.006Z",
+      "description": "Deploy PriceManager"
+    },
+    "41": {
+      "completedAt": "2026-06-03T20:32:42.982Z",
+      "description": "Deploy FeeManager"
+    },
+    "42": {
+      "completedAt": "2026-06-03T20:35:13.701Z",
+      "description": "Configure FeeManager accepted fee tokens, delay, and queued fee/discount updates"
+    },
+    "50": {
+      "completedAt": "2026-06-03T20:47:19.938Z",
+      "description": "Deploy TokenSpotOrderBook"
+    },
+    "51": {
+      "completedAt": "2026-06-03T21:03:01.569Z",
+      "description": "Grant TokenSpotOrderBook ORDERBOOK_ROLE on SethxVault"
+    },
+    "52": {
+      "completedAt": "2026-06-03T21:04:01.993Z",
+      "description": "Deploy NFTSpotOrderBook"
+    },
+    "53": {
+      "completedAt": "2026-06-03T21:04:28.511Z",
+      "description": "Grant NFTSpotOrderBook ORDERBOOK_ROLE on SethxVault"
+    },
+    "54": {
+      "completedAt": "2026-06-03T21:05:09.531Z",
+      "description": "Deploy OptionContract"
+    },
+    "55": {
+      "completedAt": "2026-06-03T21:05:40.617Z",
+      "description": "Deploy OptionsOrderBook"
+    },
+    "56": {
+      "completedAt": "2026-06-03T21:06:38.315Z",
+      "description": "Grant OptionContract and OptionsOrderBook protocol roles"
+    },
+    "57": {
+      "completedAt": "2026-06-03T21:07:08.387Z",
+      "description": "Deploy BinaryMarginOptionContract"
+    },
+    "58": {
+      "completedAt": "2026-06-03T21:07:48.119Z",
+      "description": "Deploy BinaryMarginOptionsOrderBook"
+    },
+    "59": {
+      "completedAt": "2026-06-03T21:09:01.648Z",
+      "description": "Grant BinaryMarginOptionContract and BinaryMarginOptionsOrderBook protocol roles"
+    },
+    "60": {
+      "completedAt": "2026-06-03T21:10:46.735Z",
+      "description": "Deploy MarginOptionContract"
+    },
+    "61": {
+      "completedAt": "2026-06-03T21:11:17.081Z",
+      "description": "Deploy MarginOptionsOrderBook"
+    },
+    "62": {
+      "completedAt": "2026-06-03T21:13:02.354Z",
+      "description": "Grant MarginOptionContract and MarginOptionsOrderBook protocol roles"
+    },
+    "63": {
+      "completedAt": "2026-06-05T04:28:37.462Z",
+      "description": "Deploy FuturesContract and FuturesPositionStore"
+    },
+    "64": {
+      "completedAt": "2026-06-05T04:29:49.672Z",
+      "description": "Deploy FuturesOrderBook"
+    },
+    "65": {
+      "completedAt": "2026-06-05T04:31:49.239Z",
+      "description": "Grant FuturesContract, FuturesPositionStore, and FuturesOrderBook protocol roles"
+    },
+    "68": {
+      "completedAt": "2026-06-05T04:32:53.476Z",
+      "description": "Deploy LendingContract"
+    },
+    "69": {
+      "completedAt": "2026-06-05T04:34:03.567Z",
+      "description": "Deploy LendingOrderBook"
+    },
+    "70": {
+      "completedAt": "2026-06-05T04:35:13.684Z",
+      "description": "Grant LendingContract and LendingOrderBook protocol roles"
+    },
+    "71": {
+      "completedAt": "2026-06-05T04:35:50.873Z",
+      "description": "Deploy OptionsValuationAdapter"
+    },
+    "72": {
+      "completedAt": "2026-06-05T04:36:44.997Z",
+      "description": "Deploy FuturesValuationAdapter"
+    },
+    "73": {
+      "completedAt": "2026-06-05T04:38:07.429Z",
+      "description": "Deploy ValuationModule"
+    },
+    "74": {
+      "completedAt": "2026-06-05T04:38:50.939Z",
+      "description": "Deploy RiskModule"
+    },
+    "75": {
+      "completedAt": "2026-06-05T04:47:37.540Z",
+      "description": "Configure lending valuation adapters and RiskModule approvals"
+    },
+    "76": {
+      "completedAt": "2026-06-05T04:48:21.634Z",
+      "description": "Deploy LiquidationEngine"
+    },
+    "77": {
+      "completedAt": "2026-06-05T04:48:54.249Z",
+      "description": "Deploy AccountFactory"
+    },
+    "78": {
+      "completedAt": "2026-06-05T04:49:35.584Z",
+      "description": "Deploy LendingAccountFactory"
+    },
+    "79": {
+      "completedAt": "2026-06-05T04:53:27.135Z",
+      "description": "Configure account factories and liquidation protocol roles"
+    },
+    "80": {
+      "completedAt": "2026-06-05T04:56:07.105Z",
+      "description": "Deploy TreasuryPaymentsModule"
+    },
+    "81": {
+      "completedAt": "2026-06-05T04:56:49.921Z",
+      "description": "Deploy TreasuryVaultModule"
+    },
+    "82": {
+      "completedAt": "2026-06-05T04:58:10.800Z",
+      "description": "Deploy TreasuryTradeModule and TreasuryFuturesMaintenanceModule"
+    },
+    "83": {
+      "completedAt": "2026-06-05T05:07:38.703Z",
+      "description": "Configure treasury module protocol roles"
+    },
+    "84": {
+      "completedAt": "2026-06-05T06:52:26.130Z",
+      "description": "Recovered Stage 84: SethxFeeConversionOracle already deployed and registered; old pending USDC/ETH oracle removed; replacement USDC/ETH Chainlink-compatible oracle deployed and registered; WBTC/ETH intentionally skipped"
+    },
+    "85": {
+      "completedAt": "2026-06-05T06:57:37.628Z",
+      "description": "Deploy PassiveFuturesSnapshotPublisher"
+    },
+    "86": {
+      "completedAt": "2026-06-05T06:59:16.016Z",
+      "description": "Deploy PassiveFuturesPoolFactory"
+    },
+    "87": {
+      "completedAt": "2026-06-05T07:00:25.445Z",
+      "description": "Configure passive futures publisher and pool factory roles"
+    },
+    "00": {
+      "completedAt": "2026-06-02T20:20:02.738Z",
+      "description": "Recovered stage 00 from existing token and first founder timelock; raw-deployed remaining founder timelocks, TreasuryAuthority, and ProtocolTreasury"
+    }
+  },
+  "tokenDistribution": {
+    "totalSupply": "1000000000000000000000000000",
+    "founderAmount": "210000000000000000000000000",
+    "founderTimelockTotal": "210000000000000000000000000",
+    "founderTimelocks": [
+      {
+        "address": "0x0eb8ad5a29e8b0b9d8bc881b0616cdfd18dbab5c",
+        "allocation": "35000000000000000000000000"
+      },
+      {
+        "address": "0xcfce437e96446cd267a2065fb061e7bb84ba9ee9",
+        "allocation": "35000000000000000000000000"
+      },
+      {
+        "address": "0x7ecb3cfe513fc5d50dfd1e692eb238b9ac16e4ba",
+        "allocation": "35000000000000000000000000"
+      },
+      {
+        "address": "0x79db98abb1010fb4ac01a3190ad0e58c86b280e5",
+        "allocation": "35000000000000000000000000"
+      },
+      {
+        "address": "0x32bb020af61c9989cf548cea9e1535f832fd264e",
+        "allocation": "35000000000000000000000000"
+      },
+      {
+        "address": "0x919ed980d36c4731bbae285c738384178eb545b2",
+        "allocation": "35000000000000000000000000"
+      }
+    ],
+    "treasuryAmount": "790000000000000000000000000",
+    "recovery": {
+      "treasuryMintAlreadyCompleted": true,
+      "founderMintRecoveryCompleted": true,
+      "recoveredAt": "2026-06-02T20:34:49.978Z"
+    }
+  },
+  "governance": {
+    "timelockDelaySeconds": "172800",
+    "votingDelayBlocks": "7200",
+    "votingPeriodBlocks": "36000",
+    "proposalThreshold": "100000000000000000000000",
+    "quorumBps": "20"
+  },
+  "roles": {
+    "timelock": {
+      "defaultAdminRole": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "proposerRole": "0xb09aa5aeb3702cfd50b6b62bc4532604938f21248a27a1d5ca736082b6819cc1",
+      "executorRole": "0xd8aa0f3194971a2a116679f7c2090f6939c8d4e01a2a8d7e41d55e5351469e63",
+      "cancellerRole": "0xfd643c72710c63c0180259aba6b2d05451e3591a24e58b62239378085726f783",
+      "governor": "0x85b887426f7B27Fba11DbD94c722a70242A81691",
+      "openExecutor": "0x0000000000000000000000000000000000000000",
+      "deployerAdminRevoked": false,
+      "deployerAdminRevocationStage": "99-final-governance-handoff"
+    },
+    "tokenSpotOrderBook": {
+      "vaultOrderbookRole": true
+    },
+    "nftSpotOrderBook": {
+      "vaultOrderbookRole": true
+    },
+    "optionContract": {
+      "vaultOrderbookRole": true
+    },
+    "optionsOrderBook": {
+      "vaultOrderbookRole": true,
+      "optionContractOrderbookRole": true
+    },
+    "binaryMarginOptionContract": {
+      "vaultOrderbookRole": true,
+      "priceManager": "0xA712C58cF895E7e61b58cfdFE0d8114e89348466"
+    },
+    "binaryMarginOptionsOrderBook": {
+      "vaultOrderbookRole": true,
+      "binaryMarginOptionContractOrderbookRole": true
+    },
+    "marginOptionContract": {
+      "vaultOrderbookRole": true,
+      "priceManager": "0xA712C58cF895E7e61b58cfdFE0d8114e89348466",
+      "approvedCollateralBps": [
+        10000
+      ]
+    },
+    "marginOptionsOrderBook": {
+      "vaultOrderbookRole": true,
+      "marginOptionContractOrderbookRole": true
+    },
+    "futuresContract": {
+      "priceManager": true,
+      "positionStore": true,
+      "vaultSettlementRole": true,
+      "vaultOrderbookRole": true
+    },
+    "futuresPositionStore": {
+      "futuresContractEngineRole": true
+    },
+    "futuresOrderBook": {
+      "vaultOrderbookRole": true,
+      "futuresContractOrderbookRole": true
+    },
+    "lending": {
+      "vaultOrderbookRole": true,
+      "vaultSettlementRole": true,
+      "lendingContractOrderbookRole": true,
+      "deployerLendingOrderBookGovernorRole": true
+    },
+    "lendingRisk": {
+      "valuationRiskLevels": [
+        1,
+        2
+      ],
+      "lendingRiskLevels": [
+        1,
+        2
+      ],
+      "valuationViewsConfigured": true,
+      "lendingRiskModuleConfigured": true,
+      "approved": {
+        "lendingContract": true,
+        "lendingOrderBook": true,
+        "tokenSpotOrderBook": true,
+        "optionsOrderBook": true,
+        "optionContract": true,
+        "futuresOrderBook": true,
+        "futuresContract": true,
+        "marginOptionsOrderBook": true,
+        "marginOptionContract": true,
+        "binaryMarginOptionsOrderBook": true,
+        "binaryMarginOptionContract": true
+      }
+    },
+    "accountFactories": {
+      "accountFactoryAuthorized": true,
+      "lendingAccountFactoryAuthorized": true,
+      "liquidationEngineConfigured": true,
+      "liquidationEngineHasOrderBookRole": true,
+      "liquidationEngineApprovedInRiskModule": true
+    },
+    "treasuryModules": {
+      "treasuryTradeModuleHasRegistryFactoryRole": true,
+      "treasuryVaultModuleHasVaultTreasuryRole": true,
+      "vaultProtocolTreasury": "0xF11D44d2E793E3d30509Bc8c2A224398b27B61EF",
+      "vaultProtocolTreasuryConfigured": false,
+      "treasuryPaymentsModuleApproved": true,
+      "treasuryTradeModuleApproved": true,
+      "treasuryFuturesMaintenanceModuleApproved": true,
+      "initialTreasurerApprovedExternalRecipient": true,
+      "treasuryTradeModuleApprovedInternalReceiver": true,
+      "initialTreasurer": "0xFFb88E0a3e2fDe477107230CB412cF7c560437f1",
+      "initialTreasurerIsActive": true,
+      "initialTreasurerPermissions": "63",
+      "initialGuardian": "0xFFb88E0a3e2fDe477107230CB412cF7c560437f1",
+      "initialGuardianEnabled": true,
+      "initialTreasurerTradeModuleActions": "31",
+      "paymentBudgets": [
+        {
+          "id": "HOSTING",
+          "recipient": "0xFFb88E0a3e2fDe477107230CB412cF7c560437f1",
+          "token": "0x0000000000000000000000000000000000000000",
+          "monthlyLimit": "250000000000000000",
+          "approved": true
+        }
+      ]
+    },
+    "passiveFutures": {
+      "passiveFuturesPoolFactoryHasRegistryFactoryRole": true,
+      "passiveFuturesPoolFactoryHasOrderBookAdminRole": true,
+      "passiveFuturesSnapshotPublisherHasPublisherRole": true
+    }
+  },
+  "oracleDefaults": {
+    "staleTimeoutSeconds": 86400
+  },
+  "feeManager": {
+    "ethAccepted": true,
+    "sethxAccepted": true,
+    "sethxDiscountBps": "0",
+    "pendingSethxDiscountBps": "4000",
+    "pendingSethxDiscountExecuteAfter": "1780605227",
+    "sethxDiscountStatus": "queued",
+    "feeUpdateDelay": "86400",
+    "contexts": [
+      {
+        "context": "ERC20 Spot Trade",
+        "status": "queued",
+        "makerFixedFee": "100000000000000",
+        "makerPercentageFee": "2",
+        "takerFixedFee": "100000000000000",
+        "takerPercentageFee": "2",
+        "executeAfter": "1780605239"
+      },
+      {
+        "context": "ERC721 Spot Trade",
+        "status": "queued",
+        "makerFixedFee": "0",
+        "makerPercentageFee": "0",
+        "takerFixedFee": "100000000000000",
+        "takerPercentageFee": "4",
+        "executeAfter": "1780605263"
+      },
+      {
+        "context": "Options Trade",
+        "status": "queued",
+        "makerFixedFee": "100000000000000",
+        "makerPercentageFee": "1",
+        "takerFixedFee": "100000000000000",
+        "takerPercentageFee": "2",
+        "executeAfter": "1780605275"
+      },
+      {
+        "context": "Margin Option Trade",
+        "status": "queued",
+        "makerFixedFee": "100000000000000",
+        "makerPercentageFee": "1",
+        "takerFixedFee": "100000000000000",
+        "takerPercentageFee": "2",
+        "executeAfter": "1780605287"
+      },
+      {
+        "context": "Binary Option Trade",
+        "status": "queued",
+        "makerFixedFee": "100000000000000",
+        "makerPercentageFee": "1",
+        "takerFixedFee": "100000000000000",
+        "takerPercentageFee": "2",
+        "executeAfter": "1780605299"
+      },
+      {
+        "context": "Futures Trade",
+        "status": "queued",
+        "makerFixedFee": "100000000000000",
+        "makerPercentageFee": "1",
+        "takerFixedFee": "100000000000000",
+        "takerPercentageFee": "2",
+        "executeAfter": "1780605311"
+      }
+    ]
+  },
+  "oracle": {
+    "sethxFeeConversionOracle": {
+      "address": "0xF6CC59b7086C7AD12b1989EbeCF313222567181C",
+      "approved": true,
+      "recovered": true,
+      "lastPrice": "20000000000000000000000",
+      "priceTimestamp": "1780637651",
+      "lastFetchTimestamp": "1780637651",
+      "status": "OK"
+    },
+    "tokenEthOracles": {
+      "usdcEth": {
+        "oracle": "0x6786d468d6d1eb1461ac80d61058270cca67d9e2",
+        "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+        "contexts": [
+          "GENERAL",
+          "TRADE_VALUE",
+          "FUTURE_SETTLEMENT",
+          "COLLATERAL_EVAL",
+          "OPTION_SETTLEMENT"
+        ],
+        "registeredContexts": {
+          "GENERAL": [
+            "0x6786D468D6d1Eb1461Ac80d61058270Cca67d9E2"
+          ],
+          "TRADE_VALUE": [
+            "0x6786D468D6d1Eb1461Ac80d61058270Cca67d9E2"
+          ],
+          "FUTURE_SETTLEMENT": [
+            "0x6786D468D6d1Eb1461Ac80d61058270Cca67d9E2"
+          ],
+          "COLLATERAL_EVAL": [
+            "0x6786D468D6d1Eb1461Ac80d61058270Cca67d9E2"
+          ],
+          "OPTION_SETTLEMENT": [
+            "0x6786D468D6d1Eb1461Ac80d61058270Cca67d9E2"
+          ]
+        },
+        "actions": [
+          "approveOracle",
+          "setOracleMetadata",
+          "approveOracleForContext:GENERAL",
+          "setTokenAllowedForContext:GENERAL",
+          "registerOracleForTokenContext:GENERAL",
+          "approveOracleForContext:TRADE_VALUE",
+          "setTokenAllowedForContext:TRADE_VALUE",
+          "registerOracleForTokenContext:TRADE_VALUE",
+          "approveOracleForContext:FUTURE_SETTLEMENT",
+          "setTokenAllowedForContext:FUTURE_SETTLEMENT",
+          "registerOracleForTokenContext:FUTURE_SETTLEMENT",
+          "approveOracleForContext:COLLATERAL_EVAL",
+          "setTokenAllowedForContext:COLLATERAL_EVAL",
+          "registerOracleForTokenContext:COLLATERAL_EVAL",
+          "approveOracleForContext:OPTION_SETTLEMENT",
+          "setTokenAllowedForContext:OPTION_SETTLEMENT",
+          "registerOracleForTokenContext:OPTION_SETTLEMENT",
+          "fetchPrice",
+          "syncOracleData"
+        ]
+      }
+    },
+    "stage84Recovery": {
+      "recoveredAt": "2026-06-05T06:52:26.130Z",
+      "oldPendingUsdcEthOracle": "0xa84DE6155ab4020921f101344D7642f79BA39fFa",
+      "replacementUsdcEthOracle": "0x6786D468D6d1Eb1461Ac80d61058270Cca67d9E2",
+      "usdcToken": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "usdcEthFeed": "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4",
+      "replacementMaxStaleness": "0",
+      "reason": "Original USDC/ETH oracle was deployed with immutable maxStaleness=86400 and remained PENDING because adapter-level staleness blocked fetchPrice. Replacement disables adapter-level staleness; PriceManager freshness remains responsible for protocol usage."
+    }
+  }
+}

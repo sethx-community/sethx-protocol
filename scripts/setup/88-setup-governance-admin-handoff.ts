@@ -5,27 +5,16 @@ async function grantIfMissing(contract: any, role: string, target: string) {
   }
 }
 
-async function callIfExists(contract: any, fn: string, args: unknown[]) {
-  if (typeof contract[fn] !== "function") return false;
-
-  const tx = await contract[fn](...args);
-  await tx.wait();
-
-  return true;
-}
-
 export async function setupGovernanceAdminHandoff(
   ethers: any,
   deployment: {
     addresses: {
       sethxTimelock: string;
       sethxGovernor: string;
-
       accountRegistry: string;
       sethxVault: string;
       priceManager: string;
       feeManager: string;
-
       tokenSpotOrderBook?: string;
       nftSpotOrderBook?: string;
       optionContract?: string;
@@ -35,27 +24,28 @@ export async function setupGovernanceAdminHandoff(
       marginOptionContract?: string;
       marginOptionsOrderBook?: string;
       futuresContract?: string;
+      futuresPositionStore?: string;
       futuresOrderBook?: string;
-      settlementManager?: string;
-
       lendingContract?: string;
       lendingOrderBook?: string;
+      optionsValuationAdapter?: string;
+      futuresValuationAdapter?: string;
       valuationModule?: string;
       riskModule?: string;
       liquidationEngine?: string;
-
       accountFactory?: string;
       lendingAccountFactory?: string;
-
       treasuryAuthority?: string;
-      protocolTreasury?: string;
       treasuryPaymentsModule?: string;
       treasuryVaultModule?: string;
       treasuryTradeModule?: string;
-
+      treasuryFuturesMaintenanceModule?: string;
       passiveFuturesSnapshotPublisher?: string;
       passiveFuturesPoolFactory?: string;
       sethxFeeConversionOracle?: string;
+      usdcEthOracle?: string;
+      wbtcEthOracle?: string;
+      [key: string]: any;
     };
   },
 ) {
@@ -101,6 +91,13 @@ export async function setupGovernanceAdminHandoff(
     timelock,
     "vaultDefaultAdminToTimelock",
   );
+  await grantRoleIfAddress(
+    "SethxVault",
+    deployment.addresses.sethxVault,
+    "GOVERNOR_ROLE",
+    timelock,
+    "vaultGovernorToTimelock",
+  );
 
   await grantRoleIfAddress(
     "PriceManager",
@@ -116,6 +113,38 @@ export async function setupGovernanceAdminHandoff(
     "DEFAULT_ADMIN_ROLE",
     timelock,
     "feeManagerDefaultAdminToTimelock",
+  );
+
+  await grantRoleIfAddress(
+    "OptionsValuationAdapter",
+    deployment.addresses.optionsValuationAdapter,
+    "DEFAULT_ADMIN_ROLE",
+    timelock,
+    "optionsValuationAdapterDefaultAdminToTimelock",
+  );
+
+  await grantRoleIfAddress(
+    "OptionsValuationAdapter",
+    deployment.addresses.optionsValuationAdapter,
+    "GOVERNOR_ROLE",
+    timelock,
+    "optionsValuationAdapterGovernorToTimelock",
+  );
+
+  await grantRoleIfAddress(
+    "FuturesValuationAdapter",
+    deployment.addresses.futuresValuationAdapter,
+    "DEFAULT_ADMIN_ROLE",
+    timelock,
+    "futuresValuationAdapterDefaultAdminToTimelock",
+  );
+
+  await grantRoleIfAddress(
+    "FuturesValuationAdapter",
+    deployment.addresses.futuresValuationAdapter,
+    "GOVERNOR_ROLE",
+    timelock,
+    "futuresValuationAdapterGovernorToTimelock",
   );
 
   // Market/admin roles.
@@ -168,14 +197,6 @@ export async function setupGovernanceAdminHandoff(
   );
 
   await grantRoleIfAddress(
-    "FuturesOrderBook",
-    deployment.addresses.futuresOrderBook,
-    "ADMIN_ROLE",
-    timelock,
-    "futuresOrderBookAdminToTimelock",
-  );
-
-  await grantRoleIfAddress(
     "LendingOrderBook",
     deployment.addresses.lendingOrderBook,
     "DEFAULT_ADMIN_ROLE",
@@ -224,7 +245,6 @@ export async function setupGovernanceAdminHandoff(
     "binaryMarginOptionContractGovernorToTimelock",
   );
 
-
   await grantRoleIfAddress(
     "MarginOptionContract",
     deployment.addresses.marginOptionContract,
@@ -240,7 +260,6 @@ export async function setupGovernanceAdminHandoff(
     timelock,
     "marginOptionContractGovernorToTimelock",
   );
-
 
   await grantRoleIfAddress(
     "FuturesContract",
@@ -259,12 +278,36 @@ export async function setupGovernanceAdminHandoff(
   );
 
   await grantRoleIfAddress(
-    "FuturesContract",
-    deployment.addresses.futuresContract,
-    "MARKET_MANAGER_ROLE",
+    "FuturesPositionStore",
+    deployment.addresses.futuresPositionStore,
+    "DEFAULT_ADMIN_ROLE",
     timelock,
-    "futuresContractMarketManagerToTimelock",
+    "futuresPositionStoreDefaultAdminToTimelock",
   );
+
+  if (
+    deployment.addresses.futuresPositionStore &&
+    deployment.addresses.futuresContract
+  ) {
+    const futuresPositionStore = await ethers.getContractAt(
+      "FuturesPositionStore",
+      deployment.addresses.futuresPositionStore,
+    );
+
+    const engineRole = await futuresPositionStore.FUTURES_ENGINE_ROLE();
+
+    await grantIfMissing(
+      futuresPositionStore,
+      engineRole,
+      deployment.addresses.futuresContract,
+    );
+
+    granted.futuresPositionStoreEngineRoleToFuturesContract =
+      await futuresPositionStore.hasRole(
+        engineRole,
+        deployment.addresses.futuresContract,
+      );
+  }
 
   await grantRoleIfAddress(
     "LendingContract",
@@ -297,6 +340,14 @@ export async function setupGovernanceAdminHandoff(
     "GOVERNOR_ROLE",
     timelock,
     "valuationModuleGovernorToTimelock",
+  );
+
+  await grantRoleIfAddress(
+    "ValuationModule",
+    deployment.addresses.valuationModule,
+    "RISK_ADMIN_ROLE",
+    timelock,
+    "valuationModuleRiskAdminToTimelock",
   );
 
   await grantRoleIfAddress(
@@ -397,11 +448,11 @@ export async function setupGovernanceAdminHandoff(
   );
 
   await grantRoleIfAddress(
-    "AccountFactory",
-    deployment.addresses.accountFactory,
+    "TreasuryFuturesMaintenanceModule",
+    deployment.addresses.treasuryFuturesMaintenanceModule,
     "DEFAULT_ADMIN_ROLE",
     timelock,
-    "accountFactoryDefaultAdminToTimelock",
+    "treasuryFuturesMaintenanceModuleDefaultAdminToTimelock",
   );
 
   await grantRoleIfAddress(
@@ -426,13 +477,16 @@ export async function setupGovernanceAdminHandoff(
       deployment.addresses.lendingAccountFactory,
     );
 
-    if ((await lendingAccountFactory.accountGovernor()) !== timelock) {
+    const currentGovernor = await lendingAccountFactory.accountGovernor();
+
+    if (currentGovernor.toLowerCase() !== timelock.toLowerCase()) {
       const tx = await lendingAccountFactory.setAccountGovernor(timelock);
       await tx.wait();
     }
 
     granted.lendingAccountFactoryAccountGovernorToTimelock =
-      (await lendingAccountFactory.accountGovernor()) === timelock;
+      (await lendingAccountFactory.accountGovernor()).toLowerCase() ===
+      timelock.toLowerCase();
   }
 
   // Passive futures.
@@ -475,6 +529,40 @@ export async function setupGovernanceAdminHandoff(
     "GOVERNOR_ROLE",
     timelock,
     "sethxFeeConversionOracleGovernorToTimelock",
+  );
+
+  // Immutable token/ETH Chainlink oracle adapters still expose AccessControl for
+  // governor-only funding-token rescue. Hand those roles to Timelock too.
+  await grantRoleIfAddress(
+    "ChainlinkUsdcEthOracle",
+    deployment.addresses.usdcEthOracle,
+    "DEFAULT_ADMIN_ROLE",
+    timelock,
+    "usdcEthOracleDefaultAdminToTimelock",
+  );
+
+  await grantRoleIfAddress(
+    "ChainlinkUsdcEthOracle",
+    deployment.addresses.usdcEthOracle,
+    "GOVERNOR_ROLE",
+    timelock,
+    "usdcEthOracleGovernorToTimelock",
+  );
+
+  await grantRoleIfAddress(
+    "ChainlinkWbtcEthOracle",
+    deployment.addresses.wbtcEthOracle,
+    "DEFAULT_ADMIN_ROLE",
+    timelock,
+    "wbtcEthOracleDefaultAdminToTimelock",
+  );
+
+  await grantRoleIfAddress(
+    "ChainlinkWbtcEthOracle",
+    deployment.addresses.wbtcEthOracle,
+    "GOVERNOR_ROLE",
+    timelock,
+    "wbtcEthOracleGovernorToTimelock",
   );
 
   return {

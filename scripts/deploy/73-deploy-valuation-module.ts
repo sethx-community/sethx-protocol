@@ -1,3 +1,5 @@
+import { safeDeployContract } from "./safe-deploy-contract.js";
+
 export async function deployValuationModule(
   ethers: any,
   deployment: {
@@ -11,14 +13,12 @@ export async function deployValuationModule(
   const [deployer] = await ethers.getSigners();
   const deployerAddress = await deployer.getAddress();
 
-  const valuationModule = await ethers.deployContract("ValuationModule", [
+  const valuationModule = await safeDeployContract(ethers, "ValuationModule", [
     deployment.addresses.priceManager,
     deployment.addresses.lendingContract,
     deployment.addresses.sethxVault,
     deployerAddress,
   ]);
-
-  await valuationModule.waitForDeployment();
 
   return {
     valuationModule,

@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { network } from "hardhat";
+
 import { LOCAL_DEPLOYMENT_CONFIG } from "./config/local.js";
 import { getTestnetDeploymentConfig } from "./config/testnet.js";
 import { getMainnetDeploymentConfig } from "./config/mainnet.js";
@@ -29,8 +30,7 @@ import { setupMarginOptions } from "./setup/62-setup-margin-options.js";
 import { deployFuturesContract } from "./deploy/63-deploy-futures-contract.js";
 import { deployFuturesOrderBook } from "./deploy/64-deploy-futures-orderbook.js";
 import { setupFutures } from "./setup/65-setup-futures.js";
-import { deploySettlementManager } from "./deploy/66-deploy-settlement-manager.js";
-import { setupFuturesSettlement } from "./setup/67-setup-futures-settlement.js";
+
 import { deployLendingContract } from "./deploy/68-deploy-lending-contract.js";
 import { deployLendingOrderBook } from "./deploy/69-deploy-lending-orderbook.js";
 import { setupLending } from "./setup/70-setup-lending.js";
@@ -84,8 +84,6 @@ type SethxStage =
   | "63"
   | "64"
   | "65"
-  | "66"
-  | "67"
   | "68"
   | "69"
   | "70"
@@ -113,7 +111,7 @@ type DeploymentConfig = {
   environment: SethxEnvironment;
   expectedChainId: bigint;
   outputDir: string;
-  founderAddress: string;
+  founderAddresses: readonly string[];
 };
 
 type DeploymentOutput = {
@@ -121,11 +119,20 @@ type DeploymentOutput = {
   chainId: bigint | string | number;
   deployedAt: string;
   updatedAt?: string;
-  founderAddress: string;
+  founderAddresses: readonly string[];
   founderReleaseTime?: bigint | string;
   addresses?: {
     sethxToken?: string;
-    founderTokenTimelock?: string;
+    founderTokenTimelocks?: {
+      id: string;
+      founderIndex: number;
+      beneficiary: string;
+      releaseDelaySeconds: bigint | string;
+      releaseTime: bigint | string;
+      allocationBps: bigint | string;
+      allocation: bigint | string;
+      address: string;
+    }[];
     treasuryAuthority?: string;
     protocolTreasury?: string;
     sethxTimelock?: string;
@@ -143,8 +150,8 @@ type DeploymentOutput = {
     marginOptionContract?: string;
     marginOptionsOrderBook?: string;
     futuresContract?: string;
+    futuresPositionStore?: string;
     futuresOrderBook?: string;
-    settlementManager?: string;
     lendingContract?: string;
     lendingOrderBook?: string;
     optionsValuationAdapter?: string;
@@ -157,6 +164,7 @@ type DeploymentOutput = {
     treasuryPaymentsModule?: string;
     treasuryVaultModule?: string;
     treasuryTradeModule?: string;
+    treasuryFuturesMaintenanceModule?: string;
     sethxFeeConversionOracle?: string;
     usdcToken?: string;
     wbtcToken?: string;
@@ -166,11 +174,16 @@ type DeploymentOutput = {
     wbtcEthOracle?: string;
     passiveFuturesSnapshotPublisher?: string;
     passiveFuturesPoolFactory?: string;
-    [key: string]: string | undefined;
+    [key: string]: unknown;
   };
   tokenDistribution?: {
     totalSupply: bigint | string;
     founderAmount: bigint | string;
+    founderTimelockTotal?: bigint | string;
+    founderTimelocks?: {
+      address: string;
+      allocation: bigint | string;
+    }[];
     treasuryAmount: bigint | string;
   };
   governance?: Record<string, unknown>;
@@ -184,6 +197,11 @@ type DeploymentOutput = {
   >;
   [key: string]: unknown;
 };
+
+function optionalAddress(existing: any, key: string): string | undefined {
+  const value = existing.addresses?.[key];
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
 
 function getEnvironmentName(): SethxEnvironment {
   const environment = process.env.SETHX_DEPLOYMENT_ENVIRONMENT;
@@ -237,8 +255,6 @@ function getRequestedStage(): SethxStage {
     stage === "63" ||
     stage === "64" ||
     stage === "65" ||
-    stage === "66" ||
-    stage === "67" ||
     stage === "68" ||
     stage === "69" ||
     stage === "70" ||
@@ -266,7 +282,7 @@ function getRequestedStage(): SethxStage {
   }
 
   throw new Error(
-    "Missing or invalid stage. Use SETHX_DEPLOYMENT_STAGE=00/10/20/21/30/40/41/42/50/51/52/53/54/55/56/57/58/59/60/61/62/63/64/65/66/67/68/69/70/71/72/73/74/75/76/77/78/79/80/81/82/83/84/85/86/87/88/89 to specify a stage.",
+    "Missing or invalid stage. Use SETHX_DEPLOYMENT_STAGE=00/10/20/21/30/40/41/42/50/51/52/53/54/55/56/57/58/59/60/61/62/63/64/65/68/69/70/71/72/73/74/75/76/77/78/79/80/81/82/83/84/85/86/87/88/89 to specify a stage.",
   );
 }
 
@@ -324,7 +340,7 @@ function requireAddress(
 ): string {
   const address = output.addresses?.[key];
 
-  if (!address) {
+  if (typeof address !== "string" || address.length === 0) {
     throw new Error(`Deployment output is missing addresses.${String(key)}`);
   }
 
@@ -368,12 +384,11 @@ async function runStage00(ethers: any, config: DeploymentConfig) {
       environment: config.environment,
       chainId: chain.chainId,
       deployedAt: new Date().toISOString(),
-      founderAddress: config.founderAddress,
-      founderReleaseTime: deployment.founderReleaseTime,
+      founderAddresses: config.founderAddresses,
       addresses: deployment.addresses,
     },
     "00",
-    "Deploy SETHX token, founder timelock, TreasuryAuthority, and ProtocolTreasury",
+    "Deploy SETHX token, six founder timelocks, TreasuryAuthority, and ProtocolTreasury",
   );
 
   writeDeploymentOutput(config.outputDir, output);
@@ -387,7 +402,14 @@ async function runStage10(ethers: any, config: DeploymentConfig) {
   assertStageNotCompleted(existing, "10");
 
   const sethxTokenAddress = requireAddress(existing, "sethxToken");
-  const founderTokenTimelock = requireAddress(existing, "founderTokenTimelock");
+  const founderTokenTimelocks = existing.addresses?.founderTokenTimelocks;
+  if (
+    !Array.isArray(founderTokenTimelocks) ||
+    founderTokenTimelocks.length !== 6
+  ) {
+    throw new Error("Missing founderTokenTimelocks in deployment output");
+  }
+
   const protocolTreasury = requireAddress(existing, "protocolTreasury");
 
   const sethxToken = await ethers.getContractAt(
@@ -400,7 +422,35 @@ async function runStage10(ethers: any, config: DeploymentConfig) {
     {
       sethxToken,
       addresses: {
-        founderTokenTimelock,
+        founderTokenTimelocks: founderTokenTimelocks.map((lock, index) => {
+          const lockRecord = lock as {
+            address?: unknown;
+            allocation?: unknown;
+          };
+
+          if (
+            typeof lockRecord.address !== "string" ||
+            lockRecord.address.length === 0
+          ) {
+            throw new Error(
+              `Founder timelock ${index + 1} is missing an address`,
+            );
+          }
+
+          if (
+            typeof lockRecord.allocation !== "string" &&
+            typeof lockRecord.allocation !== "bigint"
+          ) {
+            throw new Error(
+              `Founder timelock ${index + 1} is missing an allocation`,
+            );
+          }
+
+          return {
+            address: lockRecord.address,
+            allocation: BigInt(lockRecord.allocation),
+          };
+        }),
         protocolTreasury,
       },
     },
@@ -412,7 +462,7 @@ async function runStage10(ethers: any, config: DeploymentConfig) {
       tokenDistribution: distribution,
     },
     "10",
-    "Mint founder allocation to timelock, mint treasury allocation, and finish minting",
+    "Mint founder allocations to timelocks, mint treasury allocation, and finish minting",
   );
 
   writeDeploymentOutput(config.outputDir, output);
@@ -492,17 +542,40 @@ async function runStage30(ethers: any, config: DeploymentConfig) {
   await assertExpectedChainId(ethers, config);
 
   const existing = readDeploymentOutput(config.outputDir);
+
   assertStageCompleted(existing, "20");
   assertStageCompleted(existing, "21");
   assertStageNotCompleted(existing, "30");
 
-  const vaultDeployment = await deployVault(ethers);
+  const sethxToken = requireAddress(existing, "sethxToken");
+
+  const vaultDeployment = await deployVault(ethers, {
+    addresses: {
+      sethxToken,
+      accountRegistry: existing.addresses?.accountRegistry,
+      sethxVault: existing.addresses?.sethxVault,
+    },
+    onCheckpoint: (addresses) => {
+      const latest = readDeploymentOutput(config.outputDir);
+
+      writeDeploymentOutput(config.outputDir, {
+        ...latest,
+        addresses: {
+          ...(latest.addresses ?? {}),
+          ...addresses,
+        },
+        updatedAt: new Date().toISOString(),
+      });
+    },
+  });
+
+  const latest = readDeploymentOutput(config.outputDir);
 
   const output = markStageComplete(
     {
-      ...existing,
+      ...latest,
       addresses: {
-        ...(existing.addresses ?? {}),
+        ...(latest.addresses ?? {}),
         ...vaultDeployment.addresses,
       },
     },
@@ -832,13 +905,17 @@ async function runStage56(ethers: any, config: DeploymentConfig) {
   const optionContract = requireAddress(existing, "optionContract");
   const optionsOrderBook = requireAddress(existing, "optionsOrderBook");
 
-  const setup = await setupOptions(ethers, {
-    addresses: {
-      sethxVault,
-      optionContract,
-      optionsOrderBook,
+  const setup = await setupOptions(
+    ethers,
+    {
+      addresses: {
+        sethxVault,
+        optionContract,
+        optionsOrderBook,
+      },
     },
-  }, INITIAL_PROTOCOL_PARAMETERS);
+    INITIAL_PROTOCOL_PARAMETERS,
+  );
 
   const output = markStageComplete(
     {
@@ -948,14 +1025,18 @@ async function runStage59(ethers: any, config: DeploymentConfig) {
     "binaryMarginOptionsOrderBook",
   );
 
-  const setup = await setupBinaryMarginOptions(ethers, {
-    addresses: {
-      sethxVault,
-      priceManager,
-      binaryMarginOptionContract,
-      binaryMarginOptionsOrderBook,
+  const setup = await setupBinaryMarginOptions(
+    ethers,
+    {
+      addresses: {
+        sethxVault,
+        priceManager,
+        binaryMarginOptionContract,
+        binaryMarginOptionsOrderBook,
+      },
     },
-  }, INITIAL_PROTOCOL_PARAMETERS);
+    INITIAL_PROTOCOL_PARAMETERS,
+  );
 
   const output = markStageComplete(
     {
@@ -1059,14 +1140,18 @@ async function runStage62(ethers: any, config: DeploymentConfig) {
     "marginOptionsOrderBook",
   );
 
-  const setup = await setupMarginOptions(ethers, {
-    addresses: {
-      sethxVault,
-      priceManager,
-      marginOptionContract,
-      marginOptionsOrderBook,
+  const setup = await setupMarginOptions(
+    ethers,
+    {
+      addresses: {
+        sethxVault,
+        priceManager,
+        marginOptionContract,
+        marginOptionsOrderBook,
+      },
     },
-  }, INITIAL_PROTOCOL_PARAMETERS);
+    INITIAL_PROTOCOL_PARAMETERS,
+  );
 
   const output = markStageComplete(
     {
@@ -1110,7 +1195,7 @@ async function runStage63(ethers: any, config: DeploymentConfig) {
       },
     },
     "63",
-    "Deploy FuturesContract",
+    "Deploy FuturesContract and FuturesPositionStore",
   );
 
   writeDeploymentOutput(config.outputDir, output);
@@ -1166,6 +1251,7 @@ async function runStage65(ethers: any, config: DeploymentConfig) {
   const sethxVault = requireAddress(existing, "sethxVault");
   const priceManager = requireAddress(existing, "priceManager");
   const futuresContract = requireAddress(existing, "futuresContract");
+  const futuresPositionStore = requireAddress(existing, "futuresPositionStore");
   const futuresOrderBook = requireAddress(existing, "futuresOrderBook");
 
   const setup = await setupFutures(ethers, {
@@ -1173,6 +1259,7 @@ async function runStage65(ethers: any, config: DeploymentConfig) {
       sethxVault,
       priceManager,
       futuresContract,
+      futuresPositionStore,
       futuresOrderBook,
     },
   });
@@ -1186,77 +1273,7 @@ async function runStage65(ethers: any, config: DeploymentConfig) {
       },
     },
     "65",
-    "Grant FuturesContract and FuturesOrderBook protocol roles",
-  );
-
-  writeDeploymentOutput(config.outputDir, output);
-}
-
-async function runStage66(ethers: any, config: DeploymentConfig) {
-  await assertExpectedChainId(ethers, config);
-
-  const existing = readDeploymentOutput(config.outputDir);
-
-  assertStageCompleted(existing, "65");
-  assertStageNotCompleted(existing, "66");
-
-  const futuresContract = requireAddress(existing, "futuresContract");
-  const sethxVault = requireAddress(existing, "sethxVault");
-
-  const deployment = await deploySettlementManager(ethers, {
-    addresses: {
-      futuresContract,
-      sethxVault,
-    },
-  });
-
-  const output = markStageComplete(
-    {
-      ...existing,
-      addresses: {
-        ...(existing.addresses ?? {}),
-        ...deployment.addresses,
-      },
-    },
-    "66",
-    "Deploy SettlementManager",
-  );
-
-  writeDeploymentOutput(config.outputDir, output);
-}
-
-async function runStage67(ethers: any, config: DeploymentConfig) {
-  await assertExpectedChainId(ethers, config);
-
-  const existing = readDeploymentOutput(config.outputDir);
-
-  assertStageCompleted(existing, "66");
-  assertStageNotCompleted(existing, "67");
-
-  const sethxVault = requireAddress(existing, "sethxVault");
-  const futuresContract = requireAddress(existing, "futuresContract");
-  const futuresOrderBook = requireAddress(existing, "futuresOrderBook");
-  const settlementManager = requireAddress(existing, "settlementManager");
-
-  const setup = await setupFuturesSettlement(ethers, {
-    addresses: {
-      sethxVault,
-      futuresContract,
-      futuresOrderBook,
-      settlementManager,
-    },
-  });
-
-  const output = markStageComplete(
-    {
-      ...existing,
-      roles: {
-        ...(existing.roles ?? {}),
-        ...setup.roles,
-      },
-    },
-    "67",
-    "Grant SettlementManager futures protocol roles",
+    "Grant FuturesContract, FuturesPositionStore, and FuturesOrderBook protocol roles",
   );
 
   writeDeploymentOutput(config.outputDir, output);
@@ -1787,6 +1804,7 @@ async function runStage82(ethers: any, config: DeploymentConfig) {
   const accountFactory = requireAddress(existing, "accountFactory");
   const accountRegistry = requireAddress(existing, "accountRegistry");
   const sethxVault = requireAddress(existing, "sethxVault");
+  const futuresContract = requireAddress(existing, "futuresContract");
 
   const deployment = await deployTreasuryTradeModule(ethers, {
     addresses: {
@@ -1795,6 +1813,7 @@ async function runStage82(ethers: any, config: DeploymentConfig) {
       accountFactory,
       accountRegistry,
       sethxVault,
+      futuresContract,
     },
   });
 
@@ -1807,7 +1826,7 @@ async function runStage82(ethers: any, config: DeploymentConfig) {
       },
     },
     "82",
-    "Deploy TreasuryTradeModule",
+    "Deploy TreasuryTradeModule and TreasuryFuturesMaintenanceModule",
   );
 
   writeDeploymentOutput(config.outputDir, output);
@@ -1832,6 +1851,10 @@ async function runStage83(ethers: any, config: DeploymentConfig) {
   );
   const treasuryVaultModule = requireAddress(existing, "treasuryVaultModule");
   const treasuryTradeModule = requireAddress(existing, "treasuryTradeModule");
+  const treasuryFuturesMaintenanceModule = requireAddress(
+    existing,
+    "treasuryFuturesMaintenanceModule",
+  );
 
   const setup = await setupTreasuryModules(ethers, {
     addresses: {
@@ -1842,6 +1865,7 @@ async function runStage83(ethers: any, config: DeploymentConfig) {
       treasuryPaymentsModule,
       treasuryVaultModule,
       treasuryTradeModule,
+      treasuryFuturesMaintenanceModule,
       sethxToken,
     },
   });
@@ -1907,9 +1931,7 @@ async function runStage84(ethers: any, config: DeploymentConfig) {
     addresses: {
       priceManager: requireAddress(mergedDeployment, "priceManager"),
       usdcToken: requireAddress(mergedDeployment, "usdcToken"),
-      wbtcToken: requireAddress(mergedDeployment, "wbtcToken"),
       usdcEthOracle: requireAddress(mergedDeployment, "usdcEthOracle"),
-      wbtcEthOracle: requireAddress(mergedDeployment, "wbtcEthOracle"),
     },
   });
 
@@ -1926,7 +1948,7 @@ async function runStage84(ethers: any, config: DeploymentConfig) {
       },
     },
     "84",
-    "Deploy and register SethxFeeConversionOracle plus USDC/ETH and WBTC/ETH Chainlink-compatible oracles",
+    "Deploy and register SethxFeeConversionOracle plus USDC/ETH Chainlink-compatible oracle",
   );
 
   writeDeploymentOutput(config.outputDir, output);
@@ -2055,13 +2077,14 @@ async function runStage88(ethers: any, config: DeploymentConfig) {
 
   const setup = await setupGovernanceAdminHandoff(ethers, {
     addresses: {
-      ...(existing.addresses ?? {}),
+      ...existing.addresses,
       sethxTimelock: requireAddress(existing, "sethxTimelock"),
       sethxGovernor: requireAddress(existing, "sethxGovernor"),
       accountRegistry: requireAddress(existing, "accountRegistry"),
       sethxVault: requireAddress(existing, "sethxVault"),
       priceManager: requireAddress(existing, "priceManager"),
       feeManager: requireAddress(existing, "feeManager"),
+      treasuryAuthority: requireAddress(existing, "treasuryAuthority"),
     },
   });
 
@@ -2090,13 +2113,85 @@ async function runStage89(ethers: any, config: DeploymentConfig) {
 
   const setup = await revokeBootstrapAdmin(ethers, {
     addresses: {
-      ...(existing.addresses ?? {}),
+      // Core governance / protocol addresses: mandatory.
       sethxTimelock: requireAddress(existing, "sethxTimelock"),
       sethxGovernor: requireAddress(existing, "sethxGovernor"),
       accountRegistry: requireAddress(existing, "accountRegistry"),
       sethxVault: requireAddress(existing, "sethxVault"),
       priceManager: requireAddress(existing, "priceManager"),
       feeManager: requireAddress(existing, "feeManager"),
+      sethxToken: requireAddress(existing, "sethxToken"),
+      treasuryAuthority: requireAddress(existing, "treasuryAuthority"),
+      protocolTreasury: requireAddress(existing, "protocolTreasury"),
+
+      // Spot modules.
+      tokenSpotOrderBook: optionalAddress(existing, "tokenSpotOrderBook"),
+      nftSpotOrderBook: optionalAddress(existing, "nftSpotOrderBook"),
+
+      // Options modules.
+      optionContract: optionalAddress(existing, "optionContract"),
+      optionsOrderBook: optionalAddress(existing, "optionsOrderBook"),
+
+      binaryMarginOptionContract: optionalAddress(
+        existing,
+        "binaryMarginOptionContract",
+      ),
+      binaryMarginOptionsOrderBook: optionalAddress(
+        existing,
+        "binaryMarginOptionsOrderBook",
+      ),
+
+      marginOptionContract: optionalAddress(existing, "marginOptionContract"),
+      marginOptionsOrderBook: optionalAddress(
+        existing,
+        "marginOptionsOrderBook",
+      ),
+
+      // Futures modules.
+      futuresContract: optionalAddress(existing, "futuresContract"),
+      futuresPositionStore: optionalAddress(existing, "futuresPositionStore"),
+      futuresOrderBook: optionalAddress(existing, "futuresOrderBook"),
+
+      // Lending / risk / liquidation modules.
+      lendingContract: optionalAddress(existing, "lendingContract"),
+      lendingOrderBook: optionalAddress(existing, "lendingOrderBook"),
+      valuationModule: optionalAddress(existing, "valuationModule"),
+      riskModule: optionalAddress(existing, "riskModule"),
+      liquidationEngine: optionalAddress(existing, "liquidationEngine"),
+
+      // Account factories.
+      accountFactory: optionalAddress(existing, "accountFactory"),
+      lendingAccountFactory: optionalAddress(existing, "lendingAccountFactory"),
+
+      // Treasury modules.
+      treasuryPaymentsModule: optionalAddress(
+        existing,
+        "treasuryPaymentsModule",
+      ),
+      treasuryVaultModule: optionalAddress(existing, "treasuryVaultModule"),
+      treasuryTradeModule: optionalAddress(existing, "treasuryTradeModule"),
+      treasuryFuturesMaintenanceModule: optionalAddress(
+        existing,
+        "treasuryFuturesMaintenanceModule",
+      ),
+
+      // Passive futures modules.
+      passiveFuturesPoolFactory: optionalAddress(
+        existing,
+        "passiveFuturesPoolFactory",
+      ),
+      passiveFuturesSnapshotPublisher: optionalAddress(
+        existing,
+        "passiveFuturesSnapshotPublisher",
+      ),
+
+      // Oracles.
+      sethxFeeConversionOracle: optionalAddress(
+        existing,
+        "sethxFeeConversionOracle",
+      ),
+      usdcEthOracle: optionalAddress(existing, "usdcEthOracle"),
+      wbtcEthOracle: optionalAddress(existing, "wbtcEthOracle"),
     },
   });
 
@@ -2118,7 +2213,7 @@ async function runStage89(ethers: any, config: DeploymentConfig) {
 async function main() {
   const config = getDeploymentConfig();
   const stage = getRequestedStage();
-  const { ethers } = await network.create();
+  const { ethers } = await network.connect();
 
   if (stage === "00") {
     await runStage00(ethers, config);
@@ -2235,16 +2330,6 @@ async function main() {
 
   if (stage === "65") {
     await runStage65(ethers, config);
-    return;
-  }
-
-  if (stage === "66") {
-    await runStage66(ethers, config);
-    return;
-  }
-
-  if (stage === "67") {
-    await runStage67(ethers, config);
     return;
   }
 

@@ -9,24 +9,6 @@ import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
-/**
- * @notice ERC721 NFT spot orderbook
- *
- * Design choices:
- * - Token-specific orderbook: market = (nft, tokenId, quoteToken)
- * - Order size is always 1 NFT
- * - No partial fills
- * - No cross-book matching
- * - Fee budget snapshotted at placement, like TokenSpotOrderBook
- *
- *  Seller ask:
- *  - locks ERC721 tokenId in vault
- *  - does not budget protocol trading fees
- *
- * Buyer bid:
- *   - locks quote token amount in vault
- *   - fee is budgeted from locked quote amount
- */
 contract NFTSpotOrderBook is AccessControl {
     bytes32 public constant ADMIN_ROLE = DEFAULT_ADMIN_ROLE;
 
@@ -54,6 +36,7 @@ contract NFTSpotOrderBook is AccessControl {
     struct Order {
         uint256 orderId;
         address user;
+        address referrer;
         address nft;
         uint256 tokenId;
         address quoteToken;
@@ -120,6 +103,7 @@ contract NFTSpotOrderBook is AccessControl {
         uint256 indexed orderId,
         address indexed user,
         address indexed nft,
+        address referrer,
         uint256 tokenId,
         address quoteToken,
         Side side,
@@ -241,7 +225,8 @@ contract NFTSpotOrderBook is AccessControl {
         address quoteToken,
         Side side,
         uint256 price,
-        uint256 expiry
+        uint256 expiry,
+        address referrer
     ) external onlyAccount returns (uint256) {
         if (nft == address(0)) revert ZeroAddress();
         if (!_isQuoteToken(quoteToken)) revert InvalidQuoteToken();
@@ -291,25 +276,27 @@ contract NFTSpotOrderBook is AccessControl {
             fee = _lockFees(msg.sender, feeToken, quoteToken, price, false);
         }
 
-        Order memory taker = Order({
-            orderId: 0,
-            user: msg.sender,
-            nft: nft,
-            tokenId: tokenId,
-            quoteToken: quoteToken,
-            side: side,
-            price: price,
-            expiry: expiry,
-            fixedFeeAmount: fee.fixedAmount,
-            fixedFeeToken: fee.fixedToken,
-            percentageFeeAmount: fee.percentageAmount,
-            percentageFeeToken: fee.percentageToken,
-            fixedFeeCharged: false,
-            percentageFeeCharged: 0,
-            prev: 0,
-            next: 0,
-            userIndex: 0
-        });
+        uint256 takerOrderId = nextOrderId++;
+        Order storage taker = orders[takerOrderId];
+
+        taker.orderId = takerOrderId;
+        taker.user = msg.sender;
+        taker.referrer = referrer;
+        taker.nft = nft;
+        taker.tokenId = tokenId;
+        taker.quoteToken = quoteToken;
+        taker.side = side;
+        taker.price = price;
+        taker.expiry = expiry;
+        taker.fixedFeeAmount = fee.fixedAmount;
+        taker.fixedFeeToken = fee.fixedToken;
+        taker.percentageFeeAmount = fee.percentageAmount;
+        taker.percentageFeeToken = fee.percentageToken;
+        taker.fixedFeeCharged = false;
+        taker.percentageFeeCharged = 0;
+        taker.prev = 0;
+        taker.next = 0;
+        taker.userIndex = 0;
 
         OrderBookSide storage opposingBook = marketBooks[nft][tokenId][quoteToken][
             side == Side.Bid ? Side.Ask : Side.Bid
@@ -330,17 +317,24 @@ contract NFTSpotOrderBook is AccessControl {
             if (_isMatchable(maker, taker)) {
                 _executeTradeAndFees(maker, taker);
 
+                uint256 emitMakerId = maker.orderId;
+                address emitNft = maker.nft;
+                uint256 emitTokenId = maker.tokenId;
+                address emitQuoteToken = maker.quoteToken;
+                uint256 emitPrice = maker.price;
+
                 _removeOrder(opposingBook, maker.orderId);
+                delete orders[takerOrderId];
 
                 // fully matched, taker never rests
                 emit OrderMatched(
-                    maker.orderId,
-                    0,
+                    emitMakerId,
+                    takerOrderId,
                     msg.sender,
-                    nft,
-                    tokenId,
-                    quoteToken,
-                    maker.price
+                    emitNft,
+                    emitTokenId,
+                    emitQuoteToken,
+                    emitPrice
                 );
                 return 0;
             }
@@ -350,7 +344,8 @@ contract NFTSpotOrderBook is AccessControl {
         }
 
         if (side == Side.Bid) {
-            _unlockUnchargedFeeBudgetsMemory(taker);
+            _unlockRemainingFeeBudgets(taker);
+
             FeeManager.FeeOutput memory makerFee = _lockFees(
                 msg.sender,
                 feeToken,
@@ -358,6 +353,7 @@ contract NFTSpotOrderBook is AccessControl {
                 price,
                 true
             );
+
             taker.fixedFeeAmount = makerFee.fixedAmount;
             taker.fixedFeeToken = makerFee.fixedToken;
             taker.percentageFeeAmount = makerFee.percentageAmount;
@@ -366,21 +362,21 @@ contract NFTSpotOrderBook is AccessControl {
             taker.percentageFeeCharged = 0;
         }
 
-        uint256 orderId = nextOrderId++;
-        taker.orderId = orderId;
-        orders[orderId] = taker;
+        _insertOrder(marketBooks[nft][tokenId][quoteToken][side], takerOrderId);
 
-        _insertOrder(marketBooks[nft][tokenId][quoteToken][side], orderId);
-
-        emit OrderPlaced(orderId, msg.sender, nft, tokenId, quoteToken, side, price);
-        return orderId;
+        emit OrderPlaced(takerOrderId, msg.sender, nft, referrer, tokenId, quoteToken, side, price);
+        return takerOrderId;
     }
 
     // =========================================================
     // Accept existing order directly
     // =========================================================
 
-    function acceptOrder(uint256 makerOrderId, address feeToken) external onlyAccount {
+    function acceptOrder(
+        uint256 makerOrderId,
+        address feeToken,
+        address referrer
+    ) external onlyAccount {
         Order storage maker = orders[makerOrderId];
         if (maker.user == address(0)) revert OrderDoesNotExist();
         if (_isExpired(maker)) revert OrderExpired();
@@ -405,41 +401,52 @@ contract NFTSpotOrderBook is AccessControl {
             fee = _lockFees(msg.sender, feeToken, maker.quoteToken, maker.price, false);
         }
 
-        Order memory taker = Order({
-            orderId: 0,
-            user: msg.sender,
-            nft: maker.nft,
-            tokenId: maker.tokenId,
-            quoteToken: maker.quoteToken,
-            side: takerSide,
-            price: maker.price,
-            expiry: block.timestamp + 1,
-            fixedFeeAmount: fee.fixedAmount,
-            fixedFeeToken: fee.fixedToken,
-            percentageFeeAmount: fee.percentageAmount,
-            percentageFeeToken: fee.percentageToken,
-            fixedFeeCharged: false,
-            percentageFeeCharged: 0,
-            prev: 0,
-            next: 0,
-            userIndex: 0
-        });
+        uint256 takerOrderId = nextOrderId++;
+        Order storage taker = orders[takerOrderId];
+
+        taker.orderId = takerOrderId;
+        taker.user = msg.sender;
+        taker.referrer = referrer;
+        taker.nft = maker.nft;
+        taker.tokenId = maker.tokenId;
+        taker.quoteToken = maker.quoteToken;
+        taker.side = takerSide;
+        taker.price = maker.price;
+        taker.expiry = block.timestamp + 1;
+        taker.fixedFeeAmount = fee.fixedAmount;
+        taker.fixedFeeToken = fee.fixedToken;
+        taker.percentageFeeAmount = fee.percentageAmount;
+        taker.percentageFeeToken = fee.percentageToken;
+        taker.fixedFeeCharged = false;
+        taker.percentageFeeCharged = 0;
+        taker.prev = 0;
+        taker.next = 0;
+        taker.userIndex = 0;
+
+        uint256 emitMakerId = maker.orderId;
+        address emitNft = maker.nft;
+        uint256 emitTokenId = maker.tokenId;
+        address emitQuoteToken = maker.quoteToken;
+        uint256 emitPrice = maker.price;
+        Side emitMakerSide = maker.side;
 
         _executeTradeAndFees(maker, taker);
 
         _removeOrder(
-            marketBooks[maker.nft][maker.tokenId][maker.quoteToken][maker.side],
+            marketBooks[emitNft][emitTokenId][emitQuoteToken][emitMakerSide],
             makerOrderId
         );
 
+        delete orders[takerOrderId];
+
         emit OrderMatched(
-            makerOrderId,
-            0,
+            emitMakerId,
+            takerOrderId,
             msg.sender,
-            maker.nft,
-            maker.tokenId,
-            maker.quoteToken,
-            maker.price
+            emitNft,
+            emitTokenId,
+            emitQuoteToken,
+            emitPrice
         );
     }
 
@@ -490,7 +497,7 @@ contract NFTSpotOrderBook is AccessControl {
     // Matching / Settlement
     // =========================================================
 
-    function _isMatchable(Order storage maker, Order memory taker) internal view returns (bool) {
+    function _isMatchable(Order storage maker, Order storage taker) internal view returns (bool) {
         if (maker.nft != taker.nft) return false;
         if (maker.tokenId != taker.tokenId) return false;
         if (maker.quoteToken != taker.quoteToken) return false;
@@ -503,7 +510,7 @@ contract NFTSpotOrderBook is AccessControl {
         }
     }
 
-    function _executeTradeAndFees(Order storage maker, Order memory taker) internal {
+    function _executeTradeAndFees(Order storage maker, Order storage taker) internal {
         address buyer = maker.side == Side.Bid ? maker.user : taker.user;
         address seller = maker.side == Side.Bid ? taker.user : maker.user;
 
@@ -516,8 +523,8 @@ contract NFTSpotOrderBook is AccessControl {
         _chargeFixedIfNeededStorage(maker);
         _chargePctFullStorage(maker);
 
-        _chargeFixedIfNeededMemory(taker);
-        _chargePctFullMemory(taker);
+        _chargeFixedIfNeededStorage(taker);
+        _chargePctFullStorage(taker);
     }
 
     // =========================================================
@@ -528,16 +535,7 @@ contract NFTSpotOrderBook is AccessControl {
         if (!o.fixedFeeCharged) {
             o.fixedFeeCharged = true;
             if (o.fixedFeeAmount > 0) {
-                vault.chargeFee(o.user, o.fixedFeeToken, o.fixedFeeAmount, FEE_CONTEXT, true);
-            }
-        }
-    }
-
-    function _chargeFixedIfNeededMemory(Order memory o) internal {
-        if (!o.fixedFeeCharged) {
-            o.fixedFeeCharged = true;
-            if (o.fixedFeeAmount > 0) {
-                vault.chargeFee(o.user, o.fixedFeeToken, o.fixedFeeAmount, FEE_CONTEXT, true);
+                vault.chargeFee(o.user, o.fixedFeeToken, o.fixedFeeAmount, FEE_CONTEXT, o.referrer);
             }
         }
     }
@@ -549,19 +547,7 @@ contract NFTSpotOrderBook is AccessControl {
                 : 0;
 
         if (rem > 0) {
-            vault.chargeFee(o.user, o.percentageFeeToken, rem, FEE_CONTEXT, false);
-            o.percentageFeeCharged = o.percentageFeeAmount;
-        }
-    }
-
-    function _chargePctFullMemory(Order memory o) internal {
-        uint256 rem =
-            o.percentageFeeAmount > o.percentageFeeCharged
-                ? (o.percentageFeeAmount - o.percentageFeeCharged)
-                : 0;
-
-        if (rem > 0) {
-            vault.chargeFee(o.user, o.percentageFeeToken, rem, FEE_CONTEXT, false);
+            vault.chargeFee(o.user, o.percentageFeeToken, rem, FEE_CONTEXT, o.referrer);
             o.percentageFeeCharged = o.percentageFeeAmount;
         }
     }
@@ -588,20 +574,6 @@ contract NFTSpotOrderBook is AccessControl {
 
         if (fee.percentageAmount > 0) {
             _lockFeeAsset(account, fee.percentageToken, fee.percentageAmount);
-        }
-    }
-
-    function _unlockUnchargedFeeBudgetsMemory(Order memory o) internal {
-        if (!o.fixedFeeCharged && o.fixedFeeAmount > 0) {
-            _unlockFeeAsset(o.user, o.fixedFeeToken, o.fixedFeeAmount);
-        }
-
-        uint256 pctRemain =
-            o.percentageFeeAmount > o.percentageFeeCharged
-                ? (o.percentageFeeAmount - o.percentageFeeCharged)
-                : 0;
-        if (pctRemain > 0) {
-            _unlockFeeAsset(o.user, o.percentageFeeToken, pctRemain);
         }
     }
 

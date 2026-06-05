@@ -21,6 +21,12 @@ async function expectRole(
   expect(await contract.hasRole(role, holder)).to.equal(expected);
 }
 
+function contractHasFunction(contract: any, functionName: string): boolean {
+  return contract.interface.fragments.some(
+    (fragment: any) => fragment.type === "function" && fragment.name === functionName,
+  );
+}
+
 function requireStage(deployment: ReturnType<typeof readLocalDeployment>, stage: string) {
   if (!deployment.stages?.[stage]) {
     throw new Error(`Full deployment must include Stage ${stage}`);
@@ -62,6 +68,22 @@ describe("Final governance admin handoff", function () {
       "FeeManager",
       requireLocalAddress(deployment, "feeManager"),
       "DEFAULT_ADMIN_ROLE",
+      timelock,
+      true,
+    );
+
+    await expectRole(
+      "LendingContract",
+      requireLocalAddress(deployment, "lendingContract"),
+      "DEFAULT_ADMIN_ROLE",
+      timelock,
+      true,
+    );
+
+    await expectRole(
+      "LendingContract",
+      requireLocalAddress(deployment, "lendingContract"),
+      "GOVERNOR_ROLE",
       timelock,
       true,
     );
@@ -127,12 +149,45 @@ describe("Final governance admin handoff", function () {
     expect(await lendingAccountFactory.accountGovernor()).to.equal(timelock);
   });
 
-  it("removes deployer bootstrap roles if Stage 89 is part of the deployment", async function () {
+  it("keeps LendingContract loss management least-privilege and removes the deprecated recovery surface", async function () {
     const deployment = readLocalDeployment();
+    requireStage(deployment, "79");
 
-    if (!deployment.stages?.["89"]) {
-      return;
-    }
+    const lendingContract = await ethers.getContractAt(
+      "LendingContract",
+      requireLocalAddress(deployment, "lendingContract"),
+    );
+
+    expect(
+      contractHasFunction(lendingContract, "RECOVERY_MANAGER_ROLE"),
+      "RECOVERY_MANAGER_ROLE was removed from LendingContract",
+    ).to.equal(false);
+    expect(
+      contractHasFunction(lendingContract, "setRecoveryManager"),
+      "setRecoveryManager was removed from LendingContract",
+    ).to.equal(false);
+    expect(
+      contractHasFunction(lendingContract, "recordRecoveryFromVault"),
+      "recordRecoveryFromVault was removed from LendingContract",
+    ).to.equal(false);
+
+    const lossManagerRole = await lendingContract.LOSS_MANAGER_ROLE();
+    const liquidationEngine = requireLocalAddress(deployment, "liquidationEngine");
+    const timelock = requireLocalAddress(deployment, "sethxTimelock");
+
+    expect(
+      await lendingContract.hasRole(lossManagerRole, liquidationEngine),
+      "LiquidationEngine must be the operational LOSS_MANAGER_ROLE holder",
+    ).to.equal(true);
+    expect(
+      await lendingContract.hasRole(lossManagerRole, timelock),
+      "Timelock keeps GOVERNOR_ROLE but should not hold LOSS_MANAGER_ROLE directly",
+    ).to.equal(false);
+  });
+
+  it("removes deployer bootstrap roles after Stage 89", async function () {
+    const deployment = readLocalDeployment();
+    requireStage(deployment, "89");
 
     const [deployer] = await ethers.getSigners();
     const deployerAddress = await deployer.getAddress();
@@ -165,6 +220,30 @@ describe("Final governance admin handoff", function () {
       "TreasuryAuthority",
       requireLocalAddress(deployment, "treasuryAuthority"),
       "DEFAULT_ADMIN_ROLE",
+      deployerAddress,
+      false,
+    );
+
+    await expectRole(
+      "LendingContract",
+      requireLocalAddress(deployment, "lendingContract"),
+      "DEFAULT_ADMIN_ROLE",
+      deployerAddress,
+      false,
+    );
+
+    await expectRole(
+      "LendingContract",
+      requireLocalAddress(deployment, "lendingContract"),
+      "GOVERNOR_ROLE",
+      deployerAddress,
+      false,
+    );
+
+    await expectRole(
+      "LendingContract",
+      requireLocalAddress(deployment, "lendingContract"),
+      "LOSS_MANAGER_ROLE",
       deployerAddress,
       false,
     );

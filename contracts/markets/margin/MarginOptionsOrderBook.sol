@@ -8,26 +8,6 @@ import { MarginOptionContract } from "./MarginOptionContract.sol";
 import { FeeManager } from "../../oracle/FeeManager.sol";
 import { AccountRegistry } from "../../accounts/AccountRegistry.sol";
 
-/**
- * @notice Minimal orderbook for MarginOptionContract.
- *
- * Kept intentionally close to the option orderbook matching model:
- * - BuyOption  : open/increase a long position
- * - WriteOption: open/increase a short position and mint against new collateral
- * - SellOption : sell an existing long position
- * - SellWriter : sell/transfer an existing short position (collateral responsibility moves too)
- *
- * Differences vs OptionsOrderBook:
- * - market params are pre-created in MarginOptionContract; orders trade by marketKey only
- *
- * Fee rules:
- * - Only BuyOption (the premium payer for holder exposure) pays trading fees.
- * - Writer / seller-side orders do not pay trading fees.
- * - Stored BuyOption orders snapshot and lock fees at placement.
- * - Fixed fee is charged once per premium-payer order.
- * - Percentage fee is charged pro-rata by filled size, with exact remainder on final fill.
- * - BuyOption takers accepting WriteOption/SellOption makers pay fees in that accept tx.
- */
 contract MarginOptionsOrderBook is AccessControl {
     error ZeroAddress();
     error InvalidAccount();
@@ -75,6 +55,7 @@ contract MarginOptionsOrderBook is AccessControl {
     struct Order {
         uint256 orderId;
         address user;
+        address referrer;
         bytes32 marketKey;
         OrderIntent intent;
         uint256 size;
@@ -114,7 +95,8 @@ contract MarginOptionsOrderBook is AccessControl {
     event OrderPlaced(
         uint256 indexed orderId,
         address indexed user,
-        bytes32 indexed marketKey,
+        address indexed referrer,
+        bytes32 marketKey,
         OrderIntent intent,
         uint256 size,
         uint256 askPrice,
@@ -206,40 +188,9 @@ contract MarginOptionsOrderBook is AccessControl {
         uint256 size,
         uint256 askPrice,
         uint256 orderExpiry,
-        address feeToken
+        address feeToken,
+        address referrer
     ) external onlyAccount {
-        _placeOrder(marketKey, intent, size, askPrice, orderExpiry, feeToken);
-    }
-
-    function placeOrderForMarket(
-        string calldata ticker,
-        MarginOptionContract.OptionType optionType,
-        address oracle,
-        uint256 strikePrice,
-        uint256 marketExpiry,
-        uint256 collateralBps,
-        OrderIntent intent,
-        uint256 size,
-        uint256 askPrice,
-        uint256 orderExpiry,
-        address feeToken
-    ) external onlyAccount {
-        (bytes32 marketKey,,) = marginOptionContract.previewMarketKey(optionType, oracle, strikePrice, marketExpiry, collateralBps);
-        MarginOptionContract.MarketConfig memory existing = marginOptionContract.getMarket(marketKey);
-        if (!existing.initialized) {
-            marketKey = marginOptionContract.createMarket(ticker, optionType, oracle, strikePrice, marketExpiry, collateralBps);
-        }
-        _placeOrder(marketKey, intent, size, askPrice, orderExpiry, feeToken);
-    }
-
-    function _placeOrder(
-        bytes32 marketKey,
-        OrderIntent intent,
-        uint256 size,
-        uint256 askPrice,
-        uint256 orderExpiry,
-        address feeToken
-    ) internal {
         if (size == 0) revert InvalidAmount();
         if (askPrice == 0) revert InvalidPrice();
         if (orderExpiry <= block.timestamp) revert InvalidExpiry();
@@ -256,6 +207,7 @@ contract MarginOptionsOrderBook is AccessControl {
         Order storage o = ordersById[orderId];
         o.orderId = orderId;
         o.user = msg.sender;
+        o.referrer = referrer;
         o.marketKey = marketKey;
         o.intent = intent;
         o.size = size;
@@ -289,17 +241,27 @@ contract MarginOptionsOrderBook is AccessControl {
             _finalizeFilled(orderId);
         }
 
-        emit OrderPlaced(orderId, msg.sender, marketKey, intent, size, askPrice, feeToken);
-    
+        emit OrderPlaced(
+            orderId,
+            msg.sender,
+            referrer,
+            marketKey,
+            intent,
+            size,
+            askPrice,
+            feeToken
+        );
     }
 
     function acceptOrder(
         uint256 makerOrderId,
         uint256 amount,
-        address feeToken
+        address feeToken,
+        address referrer
     ) external onlyAccount {
         if (amount == 0) revert InvalidAmount();
         if (isOrderCancelled[makerOrderId]) revert OrderIsCancelled();
+        if (!isOrderInBook[makerOrderId]) revert OrderNotInBook();
 
         Order storage maker = ordersById[makerOrderId];
         if (maker.orderId == 0) revert OrderDoesNotExist();
@@ -342,7 +304,8 @@ contract MarginOptionsOrderBook is AccessControl {
             amount,
             maker.askPrice,
             m.paymentToken,
-            feeToken
+            feeToken,
+            referrer
         );
 
         maker.filled += amount;
@@ -351,7 +314,7 @@ contract MarginOptionsOrderBook is AccessControl {
                 _isLongSide(maker.intent) ? longSideBook[marketKey] : shortSideBook[marketKey];
 
             _clearRestingOrderCount(makerOrderId);
-            _removeOrderIdFromBook(book, makerOrderId);
+            if (!_removeOrderIdFromBook(book, makerOrderId)) revert OrderNotInBook();
             _finalizeFilled(makerOrderId);
         }
     }
@@ -369,7 +332,7 @@ contract MarginOptionsOrderBook is AccessControl {
 
         uint256[] storage book =
             _isLongSide(o.intent) ? longSideBook[marketKey] : shortSideBook[marketKey];
-        _removeOrderIdFromBook(book, orderId);
+        if (!_removeOrderIdFromBook(book, orderId)) revert OrderNotInBook();
         _unlockOnCancel(o, remaining, m.paymentToken);
 
         _clearRestingOrderCount(orderId);
@@ -425,7 +388,8 @@ contract MarginOptionsOrderBook is AccessControl {
                 matchSize,
                 maker.askPrice,
                 quoteToken,
-                taker.feeToken
+                taker.feeToken,
+                taker.referrer
             );
 
             taker.filled += matchSize;
@@ -451,7 +415,8 @@ contract MarginOptionsOrderBook is AccessControl {
         uint256 size,
         uint256 makerPrice,
         address quoteToken,
-        address takerFeeToken
+        address takerFeeToken,
+        address referrer
     ) internal returns (uint256 totalFeeCharged) {
         uint256 grossPremium = (size * makerPrice) / WAD;
 
@@ -504,7 +469,8 @@ contract MarginOptionsOrderBook is AccessControl {
                 premiumPayer,
                 takerFeeToken,
                 quoteToken,
-                grossPremium
+                grossPremium,
+                referrer
             );
         }
 
@@ -570,7 +536,8 @@ contract MarginOptionsOrderBook is AccessControl {
         address premiumPayer,
         address feeToken,
         address quoteToken,
-        uint256 grossPremium
+        uint256 grossPremium,
+        address referrer
     ) internal returns (uint256 chargedThisStep) {
         FeeManager.FeeOutput memory f = feeManager.getFeeForAccount(
             feeToken,
@@ -587,7 +554,7 @@ contract MarginOptionsOrderBook is AccessControl {
                 f.fixedToken,
                 f.fixedAmount,
                 "margin_option_trade_fee_fixed",
-                true
+                referrer
             );
             chargedThisStep += f.fixedAmount;
         }
@@ -598,7 +565,7 @@ contract MarginOptionsOrderBook is AccessControl {
                 f.percentageToken,
                 f.percentageAmount,
                 "margin_option_trade_fee_pct",
-                false
+                referrer
             );
             chargedThisStep += f.percentageAmount;
         }
@@ -618,7 +585,7 @@ contract MarginOptionsOrderBook is AccessControl {
                     feeOrder.fixedFeeToken,
                     feeOrder.fixedFeeTotal,
                     "margin_option_trade_fee_fixed",
-                    true
+                    feeOrder.referrer
                 );
                 chargedThisStep += feeOrder.fixedFeeTotal;
             }
@@ -638,7 +605,7 @@ contract MarginOptionsOrderBook is AccessControl {
                     feeOrder.pctFeeToken,
                     remainder,
                     "margin_option_trade_fee_pct",
-                    false
+                    feeOrder.referrer
                 );
                 feeOrder.pctFeeCharged = feeOrder.pctFeeTotal;
                 chargedThisStep += remainder;
@@ -654,7 +621,7 @@ contract MarginOptionsOrderBook is AccessControl {
                 feeOrder.pctFeeToken,
                 delta,
                 "margin_option_trade_fee_pct",
-                false
+                feeOrder.referrer
             );
             feeOrder.pctFeeCharged = pctTargetAfter;
             chargedThisStep += delta;

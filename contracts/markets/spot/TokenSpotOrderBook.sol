@@ -8,29 +8,6 @@ import { AccountRegistry } from "../../accounts/AccountRegistry.sol";
 import { SethxVault } from "../../vault/SethxVault.sol";
 import { FeeManager } from "../../oracle/FeeManager.sol";
 
-/**
- * @notice Token spot orderbook
- *
- * Refactor highlights (lessons learned from options orderbook):
- * - Fee budgets snapshotted on placement (fixed + pct totals + tokens).
- * - Track fee charging progress:
- *      fixedFeeCharged (bool), percentageFeeCharged (uint256).
- * - Percentage fee charged by "target cumulative" to avoid rounding drift;
- *   exact equality on full fill (final remainder).
- * - Cancel/expiry sweep unlock uses (budget - charged), no recomputation.
- * - Cross-book matching uses derived inverted price and consistent unit reductions.
- * 
- * /// Security assumption:
-/// ReentrancyGuard is intentionally omitted for gas efficiency.
-/// Orderbook entrypoints are restricted to registered Account contracts only.
-/// External calls are made only to trusted protocol contracts (Vault/FeeManager)
-/// and supported token standards. A reentrant callback cannot satisfy onlyAccount
-/// unless the protocol trust boundary is broken.
-
-/// This orderbook assumes supported ERC20/ERC721 assets are standard-compliant.
-/// Fee-on-transfer, rebasing, callback-heavy, or otherwise non-standard tokens
-/// are unsupported unless explicitly reviewed.
- */
 contract TokenSpotOrderBook is AccessControl {
     bytes32 public constant ADMIN_ROLE = DEFAULT_ADMIN_ROLE;
 
@@ -80,6 +57,7 @@ contract TokenSpotOrderBook is AccessControl {
     struct Order {
         uint256 orderId;
         address user;
+        address referrer;
         address baseToken;
         address quoteToken;
         Side side;
@@ -106,7 +84,6 @@ contract TokenSpotOrderBook is AccessControl {
 
     struct IncomingOrderMatchState {
         uint256 remaining;
-        uint256 offeredSpent;
     }
 
     struct OrderBookSide {
@@ -144,7 +121,8 @@ contract TokenSpotOrderBook is AccessControl {
     mapping(bytes32 => uint256) internal activeBookIndexPlus1; // 1-based
     mapping(bytes32 => uint256) internal activeBookOrderCount;
 
-    event OrderPlaced(uint256 indexed orderId, address indexed user);
+    event OrderPlaced(uint256 indexed orderId, address indexed user, address indexed referrer);
+
     event OrderMatched(
         uint256 indexed makerOrderId,
         uint256 indexed takerOrderId,
@@ -304,7 +282,8 @@ contract TokenSpotOrderBook is AccessControl {
         Side side,
         uint256 price,
         uint256 amount,
-        uint256 expiry
+        uint256 expiry,
+        address referrer
     ) external onlyAccount returns (uint256) {
         if (baseToken == quoteToken) revert InvalidPair();
         if (amount == 0) revert InvalidAmount();
@@ -339,9 +318,6 @@ contract TokenSpotOrderBook is AccessControl {
 
         _lockAsset(msg.sender, offeredToken, offeredAmount);
 
-        uint256 offeredLocked = offeredAmount;
-        uint256 offeredSpent = 0;
-
         FeeManager.FeeOutput memory fee = _lockFees(
             msg.sender,
             feeToken,
@@ -350,38 +326,42 @@ contract TokenSpotOrderBook is AccessControl {
             false
         );
 
-        Order memory taker = Order({
-            orderId: 0,
-            user: msg.sender,
-            baseToken: baseToken,
-            quoteToken: quoteToken,
-            side: side,
-            price: price,
-            amount: amount,
-            initialAmount: amount,
-            expiry: expiry,
-            fixedFeeAmount: fee.fixedAmount,
-            fixedFeeToken: fee.fixedToken,
-            percentageFeeAmount: fee.percentageAmount,
-            percentageFeeToken: fee.percentageToken,
-            fixedFeeCharged: false,
-            percentageFeeCharged: 0,
-            prev: 0,
-            next: 0,
-            offeredLocked: offeredLocked,
-            offeredSpent: offeredSpent,
-            userIndex: 0
-        });
+        uint256 orderId = nextOrderId++;
 
-        IncomingOrderMatchState memory matchState = _matchIncomingOrder(taker, offeredLocked);
+        Order storage taker = orders[orderId];
+
+        taker.orderId = orderId;
+        taker.user = msg.sender;
+        taker.referrer = referrer;
+        taker.baseToken = baseToken;
+        taker.quoteToken = quoteToken;
+        taker.side = side;
+        taker.price = price;
+        taker.amount = amount;
+        taker.initialAmount = amount;
+        taker.expiry = expiry;
+
+        taker.fixedFeeAmount = fee.fixedAmount;
+        taker.fixedFeeToken = fee.fixedToken;
+        taker.percentageFeeAmount = fee.percentageAmount;
+        taker.percentageFeeToken = fee.percentageToken;
+        taker.fixedFeeCharged = false;
+        taker.percentageFeeCharged = 0;
+
+        taker.prev = 0;
+        taker.next = 0;
+        taker.offeredLocked = offeredAmount;
+        taker.offeredSpent = 0;
+        taker.userIndex = 0;
+
+        IncomingOrderMatchState memory matchState = _matchIncomingOrder(orderId);
 
         uint256 remaining = matchState.remaining;
-        offeredSpent = matchState.offeredSpent;
-        taker.offeredSpent = offeredSpent;
 
         if (remaining > 0) {
             if (remaining == amount) {
-                _unlockUnchargedFeeBudgetsMemory(taker);
+                _unlockRemainingFeeBudgets(taker);
+
                 FeeManager.FeeOutput memory makerFee = _lockFees(
                     msg.sender,
                     feeToken,
@@ -389,6 +369,7 @@ contract TokenSpotOrderBook is AccessControl {
                     offeredAmount,
                     true
                 );
+
                 taker.fixedFeeAmount = makerFee.fixedAmount;
                 taker.fixedFeeToken = makerFee.fixedToken;
                 taker.percentageFeeAmount = makerFee.percentageAmount;
@@ -397,34 +378,33 @@ contract TokenSpotOrderBook is AccessControl {
                 taker.percentageFeeCharged = 0;
             }
 
-            uint256 orderId = nextOrderId++;
-            taker.orderId = orderId;
             taker.amount = remaining;
-            taker.initialAmount = remaining;
-            taker.offeredLocked = offeredLocked;
-            taker.offeredSpent = offeredSpent;
 
-            orders[orderId] = taker;
             _insertOrder(marketBooks[baseToken][quoteToken][side], orderId);
 
-            emit OrderPlaced(orderId, msg.sender);
+            emit OrderPlaced(orderId, msg.sender, referrer);
             return orderId;
         }
 
-        uint256 rem = offeredLocked > offeredSpent ? (offeredLocked - offeredSpent) : 0;
-        if (rem > 0) {
-            _unlockAsset(msg.sender, offeredToken, rem);
-        }
-
+        _finalizeFilledOrder(orderId);
         return 0;
     }
 
+    function _finalizeFilledOrder(uint256 orderId) internal {
+        Order storage o = orders[orderId];
+        if (o.user == address(0)) return;
+
+        _unlockRemainingOffered(o);
+        _unlockRemainingFeeBudgets(o);
+
+        delete orders[orderId];
+    }
+
     function _matchIncomingOrder(
-        Order memory taker,
-        uint256 offeredLocked
+        uint256 takerOrderId
     ) internal returns (IncomingOrderMatchState memory state) {
+        Order storage taker = orders[takerOrderId];
         state.remaining = taker.amount;
-        state.offeredSpent = taker.offeredSpent;
 
         OrderBookSide storage opposingBook = marketBooks[taker.baseToken][taker.quoteToken][
             taker.side == Side.Bid ? Side.Ask : Side.Bid
@@ -480,13 +460,12 @@ contract TokenSpotOrderBook is AccessControl {
 
                 (uint256 traded, uint256 spentOffered) = _matchNormal(maker, taker);
 
-                state.offeredSpent += spentOffered;
+                taker.offeredSpent += spentOffered;
 
-                if (state.offeredSpent > offeredLocked) {
+                if (taker.offeredSpent > taker.offeredLocked) {
                     revert SpentExceedsLockedOffer();
                 }
 
-                taker.offeredSpent = state.offeredSpent;
                 state.remaining = taker.amount;
 
                 maker.amount -= traded;
@@ -502,13 +481,12 @@ contract TokenSpotOrderBook is AccessControl {
 
                 (, uint256 spentOffered) = _matchCross(makerCross, taker);
 
-                state.offeredSpent += spentOffered;
+                taker.offeredSpent += spentOffered;
 
-                if (state.offeredSpent > offeredLocked) {
+                if (taker.offeredSpent > taker.offeredLocked) {
                     revert SpentExceedsLockedOffer();
                 }
 
-                taker.offeredSpent = state.offeredSpent;
                 state.remaining = taker.amount;
 
                 crossId = next;
@@ -519,7 +497,8 @@ contract TokenSpotOrderBook is AccessControl {
     function acceptOrder(
         uint256 makerOrderId,
         uint256 amount,
-        address feeToken
+        address feeToken,
+        address referrer
     ) external onlyAccount {
         Order storage maker = orders[makerOrderId];
         if (maker.user == address(0)) revert OrderDoesNotExist();
@@ -550,28 +529,33 @@ contract TokenSpotOrderBook is AccessControl {
             false
         );
 
-        Order memory taker = Order({
-            orderId: 0,
-            user: msg.sender,
-            baseToken: maker.baseToken,
-            quoteToken: maker.quoteToken,
-            side: takerSide,
-            price: maker.price,
-            amount: amount,
-            initialAmount: amount,
-            expiry: block.timestamp + 1,
-            fixedFeeAmount: fee.fixedAmount,
-            fixedFeeToken: fee.fixedToken,
-            percentageFeeAmount: fee.percentageAmount,
-            percentageFeeToken: fee.percentageToken,
-            fixedFeeCharged: false,
-            percentageFeeCharged: 0,
-            prev: 0,
-            next: 0,
-            offeredLocked: offeredLocked,
-            offeredSpent: 0,
-            userIndex: 0
-        });
+        uint256 takerOrderId = nextOrderId++;
+
+        Order storage taker = orders[takerOrderId];
+
+        taker.orderId = takerOrderId;
+        taker.user = msg.sender;
+        taker.referrer = referrer;
+        taker.baseToken = maker.baseToken;
+        taker.quoteToken = maker.quoteToken;
+        taker.side = takerSide;
+        taker.price = maker.price;
+        taker.amount = amount;
+        taker.initialAmount = amount;
+        taker.expiry = block.timestamp + 1;
+
+        taker.fixedFeeAmount = fee.fixedAmount;
+        taker.fixedFeeToken = fee.fixedToken;
+        taker.percentageFeeAmount = fee.percentageAmount;
+        taker.percentageFeeToken = fee.percentageToken;
+        taker.fixedFeeCharged = false;
+        taker.percentageFeeCharged = 0;
+
+        taker.prev = 0;
+        taker.next = 0;
+        taker.offeredLocked = offeredLocked;
+        taker.offeredSpent = 0;
+        taker.userIndex = 0;
 
         _executeTradeAndFeesNormal(maker, taker, amount, maker.price);
 
@@ -582,16 +566,14 @@ contract TokenSpotOrderBook is AccessControl {
             spentOffered = amount;
         }
 
-        if (spentOffered < offeredLocked) {
-            _unlockAsset(msg.sender, offeredToken, offeredLocked - spentOffered);
-        }
+        taker.offeredSpent = spentOffered;
 
         maker.amount -= amount;
         if (maker.amount == 0) {
             _removeOrder(marketBooks[maker.baseToken][maker.quoteToken][maker.side], makerOrderId);
         }
 
-        emit OrderMatched(makerOrderId, 0, msg.sender, amount);
+        _finalizeFilledOrder(takerOrderId);
     }
 
     function cancelOrder(uint256 orderId) external onlyAccount {
@@ -634,7 +616,7 @@ contract TokenSpotOrderBook is AccessControl {
 
     function _matchNormal(
         Order storage maker,
-        Order memory taker
+        Order storage taker
     ) internal returns (uint256 tradedBase, uint256 spentOffered) {
         if (taker.side == Side.Bid) {
             if (taker.price < maker.price) revert PriceNotMatchable();
@@ -658,7 +640,7 @@ contract TokenSpotOrderBook is AccessControl {
 
     function _executeTradeAndFeesNormal(
         Order storage maker,
-        Order memory taker,
+        Order storage taker,
         uint256 baseAmount,
         uint256 execPrice
     ) internal {
@@ -686,15 +668,15 @@ contract TokenSpotOrderBook is AccessControl {
         _chargeFixedIfNeededStorage(maker);
         _chargePctProRataStorage(maker, baseAmount);
 
-        _chargeFixedIfNeededMemory(taker);
-        _chargePctProRataMemory(taker, baseAmount);
+        _chargeFixedIfNeededStorage(taker);
+        _chargePctProRataStorage(taker, baseAmount);
 
         emit OrderMatched(maker.orderId, taker.orderId, taker.user, baseAmount);
     }
 
     function _matchCross(
         Order storage makerCross,
-        Order memory taker
+        Order storage taker
     ) internal returns (uint256 tradedBase, uint256 spentOffered) {
         uint256 invPrice = INVERSE_SCALE / makerCross.price;
         if (invPrice == 0) revert BadCrossPrice();
@@ -753,7 +735,7 @@ contract TokenSpotOrderBook is AccessControl {
 
     function _executeTradeAndFeesCross(
         Order storage makerCross,
-        Order memory taker,
+        Order storage taker,
         uint256 baseAmountInTakerMarket,
         uint256 execPriceInTakerMarket,
         uint256 makerCrossFilledUnits
@@ -776,8 +758,8 @@ contract TokenSpotOrderBook is AccessControl {
             makerCross.initialAmount
         );
 
-        _chargeFixedIfNeededMemory(taker);
-        _chargePctProRataMemory(taker, baseAmountInTakerMarket);
+        _chargeFixedIfNeededStorage(taker);
+        _chargePctProRataStorage(taker, baseAmountInTakerMarket);
 
         emit OrderMatched(makerCross.orderId, taker.orderId, taker.user, baseAmountInTakerMarket);
     }
@@ -786,16 +768,7 @@ contract TokenSpotOrderBook is AccessControl {
         if (!o.fixedFeeCharged) {
             o.fixedFeeCharged = true;
             if (o.fixedFeeAmount > 0) {
-                vault.chargeFee(o.user, o.fixedFeeToken, o.fixedFeeAmount, FEE_CONTEXT, true);
-            }
-        }
-    }
-
-    function _chargeFixedIfNeededMemory(Order memory o) internal {
-        if (!o.fixedFeeCharged) {
-            o.fixedFeeCharged = true;
-            if (o.fixedFeeAmount > 0) {
-                vault.chargeFee(o.user, o.fixedFeeToken, o.fixedFeeAmount, FEE_CONTEXT, true);
+                vault.chargeFee(o.user, o.fixedFeeToken, o.fixedFeeAmount, FEE_CONTEXT, o.referrer);
             }
         }
     }
@@ -829,32 +802,7 @@ contract TokenSpotOrderBook is AccessControl {
         }
 
         if (delta > 0) {
-            vault.chargeFee(o.user, o.percentageFeeToken, delta, FEE_CONTEXT, false);
-            o.percentageFeeCharged += delta;
-        }
-    }
-
-    function _chargePctProRataMemory(Order memory o, uint256 filledThisStep) internal {
-        if (o.percentageFeeAmount == 0 || o.initialAmount == 0) return;
-
-        uint256 filledBefore = o.initialAmount > o.amount ? (o.initialAmount - o.amount) : 0;
-        uint256 filledAfter = filledBefore + filledThisStep;
-        if (filledAfter > o.initialAmount) filledAfter = o.initialAmount;
-
-        uint256 delta;
-        if (filledAfter == o.initialAmount) {
-            delta =
-                o.percentageFeeAmount > o.percentageFeeCharged
-                    ? (o.percentageFeeAmount - o.percentageFeeCharged)
-                    : 0;
-        } else {
-            uint256 targetAfter = (o.percentageFeeAmount * filledAfter) / o.initialAmount;
-            delta =
-                targetAfter > o.percentageFeeCharged ? (targetAfter - o.percentageFeeCharged) : 0;
-        }
-
-        if (delta > 0) {
-            vault.chargeFee(o.user, o.percentageFeeToken, delta, FEE_CONTEXT, false);
+            vault.chargeFee(o.user, o.percentageFeeToken, delta, FEE_CONTEXT, o.referrer);
             o.percentageFeeCharged += delta;
         }
     }
@@ -880,20 +828,6 @@ contract TokenSpotOrderBook is AccessControl {
         }
         if (fee.percentageAmount > 0) {
             _lockAsset(account, fee.percentageToken, fee.percentageAmount);
-        }
-    }
-
-    function _unlockUnchargedFeeBudgetsMemory(Order memory o) internal {
-        if (!o.fixedFeeCharged && o.fixedFeeAmount > 0) {
-            _unlockAsset(o.user, o.fixedFeeToken, o.fixedFeeAmount);
-        }
-
-        uint256 pctRemain =
-            o.percentageFeeAmount > o.percentageFeeCharged
-                ? (o.percentageFeeAmount - o.percentageFeeCharged)
-                : 0;
-        if (pctRemain > 0) {
-            _unlockAsset(o.user, o.percentageFeeToken, pctRemain);
         }
     }
 
@@ -1035,7 +969,7 @@ contract TokenSpotOrderBook is AccessControl {
     function _selectBestMatch(
         uint256 makerAId,
         uint256 makerBId,
-        Order memory taker
+        Order storage taker
     ) internal view returns (MatchType) {
         bool aValid = makerAId != 0 && !_isExpired(orders[makerAId]) && orders[makerAId].amount > 0;
         bool bValid = makerBId != 0 && !_isExpired(orders[makerBId]) && orders[makerBId].amount > 0;

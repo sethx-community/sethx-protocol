@@ -11,7 +11,7 @@ export async function setupMarginOptions(
   parameters: {
     marginOptions?: {
       settlementPriceMaxWaitSeconds?: number | bigint;
-      approvedCollateralBps?: Array<number | bigint>;
+      approvedCollateralBps?: readonly (number | bigint)[];
     };
   } = {},
 ) {
@@ -29,7 +29,10 @@ export async function setupMarginOptions(
   const contractOrderbookRole = await marginOptionContract.ORDERBOOK_ROLE();
 
   const currentPriceManager = await marginOptionContract.priceManager();
-  if (ethers.getAddress(currentPriceManager) !== ethers.getAddress(deployment.addresses.priceManager)) {
+  if (
+    ethers.getAddress(currentPriceManager) !==
+    ethers.getAddress(deployment.addresses.priceManager)
+  ) {
     const tx = await marginOptionContract.setPriceManager(
       deployment.addresses.priceManager,
     );
@@ -75,12 +78,15 @@ export async function setupMarginOptions(
     await tx.wait();
   }
 
-
-  const approvedCollateralBps = parameters.marginOptions?.approvedCollateralBps ?? [10_000];
+  const approvedCollateralBps = parameters.marginOptions
+    ?.approvedCollateralBps ?? [10_000];
   for (const bps of approvedCollateralBps) {
     const desiredBps = BigInt(bps);
     if (!(await marginOptionContract.approvedCollateralBps(desiredBps))) {
-      const tx = await marginOptionContract.setApprovedCollateralBps(desiredBps, true);
+      const tx = await marginOptionContract.setApprovedCollateralBps(
+        desiredBps,
+        true,
+      );
       await tx.wait();
     }
   }
@@ -91,7 +97,8 @@ export async function setupMarginOptions(
     const desiredWait = BigInt(settlementPriceMaxWaitSeconds);
     const currentWait = await marginOptionContract.settlementPriceMaxWait();
     if (currentWait !== desiredWait) {
-      const tx = await marginOptionContract.setSettlementPriceMaxWait(desiredWait);
+      const tx =
+        await marginOptionContract.setSettlementPriceMaxWait(desiredWait);
       await tx.wait();
     }
   }

@@ -265,11 +265,30 @@ async function activeAuction(contracts: any, account: string) {
   return a;
 }
 
+function contractHasFunction(contract: any, functionName: string): boolean {
+  return contract.interface.fragments.some(
+    (fragment: any) => fragment.type === "function" && fragment.name === functionName,
+  );
+}
+
 describe("Liquidation and auction lifecycle integration", function () {
-  it("rejects malicious direct calls to liquidation, recovery, loss, and auction-governance surfaces", async function () {
+  it("rejects malicious direct calls to liquidation, loss, and auction-governance surfaces", async function () {
     const { contracts } = await loadIntegratedDeployment(ethers);
     const actors = await loadActors(ethers);
     const attacker = await actors.attacker.getAddress();
+
+    expect(
+      contractHasFunction(contracts.lendingContract, "RECOVERY_MANAGER_ROLE"),
+      "RECOVERY_MANAGER_ROLE was removed from LendingContract",
+    ).to.equal(false);
+    expect(
+      contractHasFunction(contracts.lendingContract, "recordRecoveryFromVault"),
+      "recordRecoveryFromVault was removed from LendingContract",
+    ).to.equal(false);
+    expect(
+      contractHasFunction(contracts.lendingContract, "recordMarketLoss"),
+      "deprecated recordMarketLoss stub was removed from LendingContract",
+    ).to.equal(false);
 
     const calls: Array<[string, () => Promise<unknown>]> = [
       ["LiquidationEngine.setAuctionConfig", () => contracts.liquidationEngine.connect(actors.attacker).setAuctionConfig(1, 1, 1, 15_000, 10_000, 8_000)],
@@ -279,8 +298,6 @@ describe("Liquidation and auction lifecycle integration", function () {
       ["LiquidationEngine.cancelAuction unauthorized", () => contracts.liquidationEngine.connect(actors.attacker).cancelAuction(attacker)],
       ["LendingContract.repayDebtFromVaultRecovery unauthorized", () => contracts.lendingContract.connect(actors.attacker).repayDebtFromVaultRecovery(attacker, ethers.ZeroHash, ONE)],
       ["LendingContract.recordBorrowerMarketLoss unauthorized", () => contracts.lendingContract.connect(actors.attacker).recordBorrowerMarketLoss(attacker, ethers.ZeroHash, ONE)],
-      ["LendingContract.recordRecoveryFromVault unauthorized", () => contracts.lendingContract.connect(actors.attacker).recordRecoveryFromVault(ethers.ZeroHash, ONE)],
-      ["LendingContract.recordMarketLoss disabled", () => contracts.lendingContract.connect(actors.attacker).recordMarketLoss(ethers.ZeroHash, ONE)],
     ];
 
     for (const [label, call] of calls) {
@@ -332,6 +349,51 @@ describe("Liquidation and auction lifecycle integration", function () {
     const auction = await activeAuction(contracts, s.borrowerAddress);
     expect(auction.marketKey, "overdue auction market key").to.equal(s.marketKey);
     expect(await s.borrower.liquidationActive(), "overdue liquidation freezes account").to.equal(true);
+  });
+
+  it("resolves liquidation from free ETH only without creating an auction", async function () {
+    const { contracts, addresses } = await loadIntegratedDeployment(ethers);
+    const actors = await loadActors(ethers);
+    const s = await makeTokenCollateralDebtScenario(contracts, addresses, actors, 3, ONE, 6n * ONE, RATE_BPS);
+    const originalOwner = await actors.bob.getAddress();
+
+    expect(await contracts.valuationModule.isLiquidatable(s.borrowerAddress, RISK_LEVEL), "healthy before maturity").to.equal(false);
+
+    const extraFreeEthNeeded = s.face > s.principal ? s.face - s.principal : 0n;
+    if (extraFreeEthNeeded > 0n) {
+      await depositEth(s.borrower, actors.bob, extraFreeEthNeeded);
+    }
+
+    expect(await contracts.vault.ethBalances(s.borrowerAddress), "borrower has enough free ETH to fully repay debt").to.equal(s.face);
+
+    await mineToTimestamp(s.expiry + 1n);
+
+    await (
+      await contracts.liquidationEngine
+        .connect(actors.attacker)
+        .triggerLiquidation(s.borrowerAddress, s.marketKey, RISK_LEVEL)
+    ).wait();
+
+    const debtAfter = await contracts.lendingContract.getDebt(s.borrowerAddress, s.marketKey);
+    const auctionAfter = await contracts.liquidationEngine.auctions(s.borrowerAddress);
+
+    expect(debtAfter.faceValue, "free ETH sweep fully repaid borrower debt").to.equal(0n);
+    expect(await contracts.vault.ethBalances(s.borrowerAddress), "all free ETH was swept to settlement").to.equal(0n);
+    expect(await s.borrower.liquidationActive(), "liquidation flag cleared after free-ETH resolution").to.equal(false);
+    expect(await s.borrower.owner(), "owner unchanged when no auction sale occurs").to.equal(originalOwner);
+    expect(await contracts.accountRegistry.ownerOfAccount(s.borrowerAddress), "registry owner unchanged when no auction sale occurs").to.equal(originalOwner);
+    expect(auctionAfter.active, "no auction remains active after full free-ETH resolution").to.equal(false);
+    expect(auctionAfter.sold, "auction is not marked sold because no auction was created").to.equal(false);
+    expect(auctionAfter.debtSnapshot, "no zero-debt auction snapshot is stored").to.equal(0n);
+    expect(await contracts.lendingContract.recoveredBeforeSettlement(s.marketKey), "full face value recorded as lender recovery").to.equal(s.face);
+    expect(await contracts.vault.settlementEthLocked(s.marketKey), "settlement bucket funded by full debt sweep").to.equal(s.face);
+
+    const buyer = await createNormalAccount(ethers, contracts.accountFactory, contracts.accountRegistry, actors.carol);
+    await depositEth(buyer, actors.carol, ONE);
+    await expectBlocked(
+      "fully repaid liquidation cannot be bought because no auction exists",
+      buyer.connect(actors.carol).buyAuctionedLendingAccount(addresses.liquidationEngine, s.borrowerAddress),
+    );
   });
 
   it("lets a normal Account buy an auctioned LendingAccount and reconciles recovery, surplus, ownership transfer, and lender settlement", async function () {
@@ -506,6 +568,12 @@ describe("Liquidation and auction lifecycle integration", function () {
     await (await contracts.liquidationEngine.connect(actors.attacker).markAuctionExpired(expiring.borrowerAddress)).wait();
     const expiredAuction = await contracts.liquidationEngine.auctions(expiring.borrowerAddress);
     expect(expiredAuction.active, "marked expired auction inactive").to.equal(false);
-    expect(await expiring.borrower.liquidationActive(), "expired unsold account remains liquidating for governance follow-up").to.equal(true);
+    expect(expiredAuction.sold, "expired auction is not sold").to.equal(false);
+    expect(await expiring.borrower.liquidationActive(), "expired unsold account is unfrozen so it can be cured or re-liquidated").to.equal(false);
+
+    await (await contracts.liquidationEngine.connect(actors.dave).triggerLiquidation(expiring.borrowerAddress, expiring.marketKey, RISK_LEVEL)).wait();
+    const retriggeredAuction = await activeAuction(contracts, expiring.borrowerAddress);
+    expect(retriggeredAuction.debtSnapshot, "expired account can be re-liquidated into a fresh auction").to.be.gt(0n);
+    expect(await expiring.borrower.liquidationActive(), "fresh auction refreezes account").to.equal(true);
   });
 });

@@ -22,7 +22,7 @@ contract AccountFactory {
     }
 
     function createAccount() external returns (address account) {
-        account = address(new Account(msg.sender, vault));
+        account = address(new Account(msg.sender, vault, registry));
 
         AccountRegistry(registry).registerAccount(msg.sender, account);
 

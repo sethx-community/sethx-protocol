@@ -1,3 +1,5 @@
+import { safeDeployContract } from "./safe-deploy-contract.js";
+
 export async function deployLendingAccountFactory(
   ethers: any,
   deployment: {
@@ -11,14 +13,12 @@ export async function deployLendingAccountFactory(
   const [deployer] = await ethers.getSigners();
   const deployerAddress = await deployer.getAddress();
 
-  const lendingAccountFactory = await ethers.deployContract("LendingAccountFactory", [
+  const lendingAccountFactory = await safeDeployContract(ethers, "LendingAccountFactory", [
     deployment.addresses.accountRegistry,
     deployment.addresses.sethxVault,
     deployerAddress,
     deployment.addresses.liquidationEngine,
   ]);
-
-  await lendingAccountFactory.waitForDeployment();
 
   return {
     lendingAccountFactory,

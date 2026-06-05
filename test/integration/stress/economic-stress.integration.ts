@@ -138,13 +138,13 @@ async function placeTokenAsk(account: any, owner: any, orderBook: any, baseToken
   await (
     await account
       .connect(owner)
-      .placeOrderTokenSpot(await orderBook.getAddress(), ETH, baseToken, quoteToken, 1, price, amount, await freshOrderExpiry())
+      .placeOrderTokenSpot(await orderBook.getAddress(), ETH, baseToken, quoteToken, 1, price, amount, await freshOrderExpiry(), ethers.ZeroAddress)
   ).wait();
   return orderId;
 }
 
 async function acceptTokenOrder(account: any, owner: any, orderBook: any, orderId: bigint, amount: bigint) {
-  await (await account.connect(owner).acceptOrderTokenSpot(await orderBook.getAddress(), orderId, amount, ETH)).wait();
+  await (await account.connect(owner).acceptOrderTokenSpot(await orderBook.getAddress(), orderId, amount, ETH, ethers.ZeroAddress)).wait();
 }
 
 describe("Economic stress integration", function () {
@@ -213,20 +213,20 @@ describe("Economic stress integration", function () {
     await (
       await shortAccount
         .connect(actors.alice)
-        .placeOrderFutures(await contracts.futuresOrderBook.getAddress(), marketKey, 1, FUTURES_INITIAL_PRICE, FUTURES_SIZE, 0, ETH)
+        .placeOrderFutures(await contracts.futuresOrderBook.getAddress(), marketKey, 1, FUTURES_INITIAL_PRICE, FUTURES_SIZE, 0, ETH, ethers.ZeroAddress)
     ).wait();
     await (
       await longAccount
         .connect(actors.bob)
-        .placeOrderFutures(await contracts.futuresOrderBook.getAddress(), marketKey, 0, FUTURES_INITIAL_PRICE, FUTURES_SIZE, 0, ETH)
+        .placeOrderFutures(await contracts.futuresOrderBook.getAddress(), marketKey, 0, FUTURES_INITIAL_PRICE, FUTURES_SIZE, 0, ETH, ethers.ZeroAddress)
     ).wait();
 
     await (await oracle.setPrice(FUTURES_STRESS_PRICE)).wait();
     await (await contracts.priceManager.syncOracleData(oracleAddress)).wait();
-    await (await contracts.settlementManager.connect(actors.deployer).settleAll(marketKey)).wait();
+    await (await contracts.futuresContract.syncSettlementPrice(marketKey)).wait();
 
-    const shortPosition = await contracts.futuresContract.getPosition(shortAddress, marketKey, false);
-    const longPosition = await contracts.futuresContract.getPosition(longAddress, marketKey, true);
+    const shortPosition = await contracts.futuresContract.getPosition(shortAddress, marketKey);
+    const longPosition = await contracts.futuresContract.getPosition(longAddress, marketKey);
     const shortLocked = await contracts.vault.ethLocked(shortAddress);
     const longLocked = await contracts.vault.ethLocked(longAddress);
 
@@ -234,7 +234,7 @@ describe("Economic stress integration", function () {
     expect(longLocked, "long locked <= total after stress").to.be.lte(await contracts.vault.ethBalances(longAddress));
     expect(shortPosition.margin, "short margin cannot be negative").to.be.gte(0n);
     expect(longPosition.margin, "long margin remains non-negative").to.be.gte(0n);
-    expect(await contracts.vault.settlementEthLocked(marketKey), "settlement bucket drained after settleAll").to.equal(0n);
+    expect(await contracts.vault.settlementEthLocked(marketKey), "settlement bucket unchanged after price sync").to.equal(0n);
   });
 
   it("runs a high-utilization lending fill with two lenders and one borrower while preserving debt and vault invariants", async function () {

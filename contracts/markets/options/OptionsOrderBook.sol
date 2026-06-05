@@ -8,24 +8,6 @@ import { OptionContract } from "./OptionContract.sol";
 import { FeeManager } from "../../oracle/FeeManager.sol";
 import { AccountRegistry } from "../../accounts/AccountRegistry.sol";
 
-/**
- * @notice Options orderbook (non-tokenized baseline)
- *
- * Fee rules (as requested):
- * - Only the PREMIUM PAYER pays fees. Stored long-side premium payer orders are BuyOption.
- * - Writer does NOT pay fees.
- * - Fixed fee is charged ONCE per premium-payer ORDER (stored limit order via placeOrder).
- * - Percentage fee is charged PRO-RATA to filled premium; exact equality on full fill.
- * - For acceptOrder() where the CALLER is premium payer (maker is short):
- *      - that "taker order" is not stored => we charge fixed once in that accept tx,
- *        and charge percentage for the accepted premium (single fill).
- *
- * IMPORTANT:
- * - We snapshot fees at placement for long-side stored orders.
- * - We track fee charging progress on the stored order:
- *      fixedFeeCharged (bool) and pctFeeCharged (uint256)
- * - Cancel/expiry unlock uses stored totals minus charged amounts (NO recalculation).
- */
 contract OptionsOrderBook is AccessControl {
     error ZeroAddress();
     error InvalidAccount();
@@ -61,6 +43,7 @@ contract OptionsOrderBook is AccessControl {
     struct Order {
         uint256 orderId;
         address user; // account contract address
+        address referrer;
         // Market params
         OptionContract.OptionType optionType;
         address assetToken;
@@ -134,7 +117,8 @@ contract OptionsOrderBook is AccessControl {
     event OrderPlaced(
         uint256 indexed orderId,
         address indexed user,
-        bytes32 indexed marketKey,
+        address indexed referrer,
+        bytes32 marketKey,
         OrderIntent intent,
         uint256 size,
         uint256 askPrice,
@@ -142,7 +126,7 @@ contract OptionsOrderBook is AccessControl {
     );
 
     event OrderMatched(
-        uint256 indexed takerOrderId, // 0 for acceptOrder (no stored taker order)
+        uint256 indexed takerOrderId,
         uint256 indexed makerOrderId,
         uint256 size,
         uint256 grossPremium,
@@ -256,7 +240,8 @@ contract OptionsOrderBook is AccessControl {
         address feeToken,
         OrderIntent intent,
         uint256 size,
-        uint256 askPrice
+        uint256 askPrice,
+        address referrer
     ) external onlyAccount {
         if (!_isValidIntent(intent)) revert InvalidOrderIntent();
         if (size == 0) revert InvalidAmount();
@@ -299,6 +284,7 @@ contract OptionsOrderBook is AccessControl {
 
         o.orderId = orderId;
         o.user = msg.sender;
+        o.referrer = referrer;
 
         o.optionType = optionType;
         o.assetToken = assetToken;
@@ -320,7 +306,16 @@ contract OptionsOrderBook is AccessControl {
 
         _lockAndMaybeSnapshotFees(o, false);
 
-        emit OrderPlaced(orderId, msg.sender, marketKey, intent, size, askPrice, feeToken);
+        emit OrderPlaced(
+            orderId,
+            msg.sender,
+            referrer,
+            marketKey,
+            intent,
+            size,
+            askPrice,
+            feeToken
+        );
 
         if (_isLongSide(intent)) {
             _matchAgainstBook(marketKey, orderId, shortSideBook[marketKey], true);
@@ -358,13 +353,15 @@ contract OptionsOrderBook is AccessControl {
     function acceptOrder(
         uint256 makerOrderId,
         uint256 amount,
-        address feeToken
+        address feeToken,
+        address referrer
     ) external onlyAccount {
         if (amount == 0) revert InvalidAmount();
 
         Order storage maker = ordersById[makerOrderId];
         if (maker.orderId == 0) revert OrderDoesNotExist();
         if (isOrderCancelled[makerOrderId]) revert OrderIsCancelled();
+        if (!isOrderInBook[makerOrderId]) revert OrderNotInBook();
         if (block.timestamp > maker.expiry) revert OrderExpired();
 
         uint256 makerRemaining = maker.size - maker.filled;
@@ -428,11 +425,17 @@ contract OptionsOrderBook is AccessControl {
                 );
 
             if (fixedAmt > 0) {
-                vault.chargeFee(premiumPayer, fixedTok, fixedAmt, "option_trade_fee_fixed", true);
+                vault.chargeFee(
+                    premiumPayer,
+                    fixedTok,
+                    fixedAmt,
+                    "option_trade_fee_fixed",
+                    referrer
+                );
                 feeChargedThisStep += fixedAmt;
             }
             if (pctAmt > 0) {
-                vault.chargeFee(premiumPayer, pctTok, pctAmt, "option_trade_fee_pct", false);
+                vault.chargeFee(premiumPayer, pctTok, pctAmt, "option_trade_fee_pct", referrer);
                 feeChargedThisStep += pctAmt;
             }
         }
@@ -490,7 +493,7 @@ contract OptionsOrderBook is AccessControl {
                 makerIsLong ? longSideBook[marketKey] : shortSideBook[marketKey];
 
             _clearRestingOrderCount(makerOrderId);
-            _removeOrderIdFromBook(book, makerOrderId);
+            if (!_removeOrderIdFromBook(book, makerOrderId)) revert OrderNotInBook();
             _marketRemoveOpen(marketKey);
             _finalizeFilled(makerOrderId);
         }
@@ -794,7 +797,7 @@ contract OptionsOrderBook is AccessControl {
                     feeOrder.fixedFeeToken,
                     feeOrder.fixedFeeTotal,
                     "option_trade_fee_fixed",
-                    true
+                    feeOrder.referrer
                 );
                 chargedThisStep += feeOrder.fixedFeeTotal;
             }
@@ -814,7 +817,7 @@ contract OptionsOrderBook is AccessControl {
                     feeOrder.pctFeeToken,
                     remainder,
                     "option_trade_fee_pct",
-                    false
+                    feeOrder.referrer
                 );
                 feeOrder.pctFeeCharged = feeOrder.pctFeeTotal;
                 chargedThisStep += remainder;
@@ -831,7 +834,7 @@ contract OptionsOrderBook is AccessControl {
                 feeOrder.pctFeeToken,
                 delta,
                 "option_trade_fee_pct",
-                false
+                feeOrder.referrer
             );
             feeOrder.pctFeeCharged = pctTargetAfter;
             chargedThisStep += delta;
