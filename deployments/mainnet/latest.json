@@ -111,7 +111,7 @@
     "passiveFuturesPoolFactory": "0xa17784eC210E72d2612eaBdB1A1691101fDD92cE",
     "previousTreasuryTradeModule": "0xAFC436afFe98164d36de81AACaAce6EbD2954Ea7"
   },
-  "updatedAt": "2026-06-06T02:42:49.946Z",
+  "updatedAt": "2026-06-06T08:35:14.591Z",
   "recovery": {
     "recoveredFromTokenDeploymentTx": "0x34a2368a7f1b39245876cc005e680d0bc33682684632ff8b63e4cf0f5c190afe",
     "recoveredSethxToken": "0xd603b12f7458d44ddf30e48e72c640c9b6f9d61f",
@@ -604,6 +604,234 @@
       "usdcEthFeed": "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4",
       "replacementMaxStaleness": "0",
       "reason": "Original USDC/ETH oracle was deployed with immutable maxStaleness=86400 and remained PENDING because adapter-level staleness blocked fetchPrice. Replacement disables adapter-level staleness; PriceManager freshness remains responsible for protocol usage."
+    },
+    "chainlinkEthOracles": {
+      "BTC/ETH": {
+        "pairName": "BTC/ETH",
+        "symbol": "BTC",
+        "tokenSymbol": "WBTC",
+        "feedType": "ASSET_ETH",
+        "feed": "0xdeb288F737066589598e9214E782fa5A8eD689e8",
+        "ethUsdFeed": null,
+        "oracle": "0x973890649625573475dba1f54C16A453D7161028",
+        "token": "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
+        "configuredAt": "2026-06-06T00:00:00.000Z",
+        "lastPrice": {
+          "price": "39169080546794020000",
+          "priceTimestamp": "1780720307",
+          "lastFetchTimestamp": "1780728083",
+          "status": "OK"
+        }
+      },
+      "LINK/ETH": {
+        "pairName": "LINK/ETH",
+        "symbol": "LINK",
+        "tokenSymbol": "LINK",
+        "feedType": "ASSET_ETH",
+        "feed": "0xDC530D9457755926550b59e8ECcdaE7624181557",
+        "ethUsdFeed": null,
+        "oracle": "0x2547f566463C2EE6B72b61034596021df735CE11",
+        "deploymentTx": "0x0911b2f9d6b36fbc4215a52fd5a0c0f3f39009aae02e4ea888d16dab2ac1cc42",
+        "deployedAt": "2026-06-06T00:00:00.000Z",
+        "token": "0x514910771AF9Ca656af840dff83E8264EcF986CA",
+        "configuredAt": "2026-06-06T07:13:50.285Z",
+        "lastPrice": {
+          "price": "4661060200000000",
+          "priceTimestamp": "1780714127",
+          "lastFetchTimestamp": "1780730015",
+          "status": "OK"
+        }
+      },
+      "UNI/ETH": {
+        "pairName": "UNI/ETH",
+        "symbol": "UNI",
+        "tokenSymbol": "UNI",
+        "feedType": "ASSET_USD",
+        "feed": "0x553303d460EE0afB37EdFf9bE42922D8FF63220e",
+        "ethUsdFeed": "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419",
+        "oracle": "0x33648629fc1EaAC377A057ff7C76ac1eAAD35bDD",
+        "deploymentTx": "0xe9fa4638900d3749f7d0af311c7ed05d97b4297ed43a854259310617a6aaabe4",
+        "deployedAt": "2026-06-06T00:00:00.000Z",
+        "token": "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984",
+        "configuredAt": "2026-06-06T07:25:50.716Z",
+        "lastPrice": {
+          "price": "1549960855954675",
+          "priceTimestamp": "1780730015",
+          "lastFetchTimestamp": "1780730735",
+          "status": "OK"
+        }
+      },
+      "AAVE/ETH": {
+        "pairName": "AAVE/ETH",
+        "symbol": "AAVE",
+        "tokenSymbol": "AAVE",
+        "feedType": "ASSET_USD",
+        "feed": "0x547a514d5e3769680Ce22B2361c10Ea13619e8a9",
+        "ethUsdFeed": "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419",
+        "oracle": "0xdD84A0D493ca8564e9E57EC72871547283D7D2Db",
+        "deploymentTx": "0xc0e16bbcdbd7d69494d83caa31fc34a47f1570e03ca103cbbf5b744332e16e4b",
+        "deployedAt": "2026-06-06T00:00:00.000Z",
+        "token": "0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9",
+        "configuredAt": "2026-06-06T07:38:15.056Z",
+        "lastPrice": {
+          "price": "39029839665542781",
+          "priceTimestamp": "1780729787",
+          "lastFetchTimestamp": "1780731479",
+          "status": "OK"
+        }
+      },
+      "LDO/ETH": {
+        "pairName": "LDO/ETH",
+        "symbol": "LDO",
+        "tokenSymbol": "LDO",
+        "feedType": "ASSET_ETH",
+        "feed": "0x4e844125952D32AcdF339BE976c98E22F6F318dB",
+        "ethUsdFeed": null,
+        "oracle": "0x20104997F2E294726669C766958Da1a5cf719ceB",
+        "deploymentTx": "0xa8699befad3de0f3a0b90a2c9e9703ec2b17abcae8d8aac24e8ec7f3b7a1fd4d",
+        "deployedAt": "2026-06-06T00:00:00.000Z",
+        "token": "0x5A98FcBEA516Cf06857215779Fd812CA3beF1B32",
+        "configuredAt": "2026-06-06T07:45:38.381Z",
+        "lastPrice": {
+          "price": "161291260192892",
+          "priceTimestamp": "1780686527",
+          "lastFetchTimestamp": "1780731923",
+          "status": "OK"
+        }
+      },
+      "DAI/ETH": {
+        "pairName": "DAI/ETH",
+        "symbol": "DAI",
+        "tokenSymbol": "DAI",
+        "feedType": "ASSET_USD",
+        "feed": "0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9",
+        "ethUsdFeed": "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419",
+        "oracle": "0x26E94Ec0885D93880eb05830317b024054fb6e16",
+        "deploymentTx": "PASTE_DAI_DEPLOY_TX_HASH_HERE",
+        "deployedAt": "2026-06-06T00:00:00.000Z",
+        "token": "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+        "configuredAt": "2026-06-06T07:53:50.229Z",
+        "lastPrice": {
+          "price": "636461641605817",
+          "priceTimestamp": "1780730471",
+          "lastFetchTimestamp": "1780732415",
+          "status": "OK"
+        }
+      },
+      "EUR/ETH": {
+        "pairName": "EUR/ETH",
+        "symbol": "EUR",
+        "tokenSymbol": null,
+        "feedType": "ASSET_USD",
+        "feed": "0xb49f677943BC038e9857d61E7d053CaA2C1734C1",
+        "ethUsdFeed": "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419",
+        "oracle": "0xABc9618ea1225fdB0315f7523851Da9E4dDe3FE3",
+        "deploymentTx": "0xc071d545b31a81a513a3dca933830dfbd73d2dd0d8ca6102d3232205c54b7afd",
+        "deployedAt": "2026-06-06T00:00:00.000Z",
+        "token": null,
+        "configuredAt": "2026-06-06T08:16:14.723Z",
+        "lastPrice": {
+          "price": "732814667909463",
+          "priceTimestamp": "1780675619",
+          "lastFetchTimestamp": "1780733747",
+          "status": "OK"
+        }
+      },
+      "GBP/ETH": {
+        "pairName": "GBP/ETH",
+        "symbol": "GBP",
+        "tokenSymbol": null,
+        "feedType": "ASSET_USD",
+        "feed": "0x5c0Ab2d9b5a7ed9f470386e82BB36A3613cDd4b5",
+        "ethUsdFeed": "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419",
+        "oracle": "0x8c28eC77E3514d551A9016296B46A79650043290",
+        "deploymentTx": "0x786b37bcf86e62a75107d7232923e0e6b342661db3ed7f0d981679f02457b09c",
+        "deployedAt": "2026-06-06T08:16:31.669Z",
+        "token": null,
+        "configuredAt": "2026-06-06T08:18:26.719Z",
+        "lastPrice": {
+          "price": "847738691652622",
+          "priceTimestamp": "1780682687",
+          "lastFetchTimestamp": "1780733891",
+          "status": "OK"
+        }
+      },
+      "JPY/ETH": {
+        "pairName": "JPY/ETH",
+        "symbol": "JPY",
+        "tokenSymbol": null,
+        "feedType": "ASSET_USD",
+        "feed": "0xBcE206caE7f0ec07b545EddE332A47C2F75bbeb3",
+        "ethUsdFeed": "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419",
+        "oracle": "0xc003122aD00C673838272385e3aa0dd2C4671795",
+        "deploymentTx": "0xf1a3671d6ad2022431f46f0e8aa140551d128f1f9b4369bf3c1524ff3cf41af8",
+        "deployedAt": "2026-06-06T08:20:29.071Z",
+        "token": null,
+        "configuredAt": "2026-06-06T08:23:39.692Z",
+        "lastPrice": {
+          "price": "3969427087239",
+          "priceTimestamp": "1780664063",
+          "lastFetchTimestamp": "1780734203",
+          "status": "OK"
+        }
+      },
+      "CHF/ETH": {
+        "pairName": "CHF/ETH",
+        "symbol": "CHF",
+        "tokenSymbol": null,
+        "feedType": "ASSET_USD",
+        "feed": "0x449d117117838fFA61263B61dA6301AA2a88B13A",
+        "ethUsdFeed": "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419",
+        "oracle": "0x277757Ca4B34De35037009690d8eACa6767060AC",
+        "deploymentTx": "0x4bf17d68e0efd692a9f011b180e97da5d2cef46d30d893e993d80fa7eb183d27",
+        "deployedAt": "2026-06-06T08:24:04.030Z",
+        "token": null,
+        "configuredAt": "2026-06-06T08:26:38.114Z",
+        "lastPrice": {
+          "price": "798318259339873",
+          "priceTimestamp": "1780680911",
+          "lastFetchTimestamp": "1780734383",
+          "status": "OK"
+        }
+      },
+      "XAU/ETH": {
+        "pairName": "XAU/ETH",
+        "symbol": "XAU",
+        "tokenSymbol": null,
+        "feedType": "ASSET_USD",
+        "feed": "0x214eD9Da11D2fbe465a6fc601a91E62EbEc1a0D6",
+        "ethUsdFeed": "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419",
+        "oracle": "0x9aAb8E6912ea29B490CcBDedfdE165E194EbddFF",
+        "deploymentTx": "0x37ce9e6991282a9147dd75b5a01a83ebc14f011d75afe1badd50ac59e6e5bd77",
+        "deployedAt": "2026-06-06T08:26:50.600Z",
+        "token": null,
+        "configuredAt": "2026-06-06T08:30:50.747Z",
+        "lastPrice": {
+          "price": "2731287935999868375",
+          "priceTimestamp": "1780683323",
+          "lastFetchTimestamp": "1780734599",
+          "status": "OK"
+        }
+      },
+      "XAG/ETH": {
+        "pairName": "XAG/ETH",
+        "symbol": "XAG",
+        "tokenSymbol": null,
+        "feedType": "ASSET_USD",
+        "feed": "0x379589227b15F1a12195D3f2d90bBc9F31f95235",
+        "ethUsdFeed": "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419",
+        "oracle": "0x00C51B89EA0ac7eb369e307b60a8d2948211ebee",
+        "deploymentTx": "0x820581cc99dabeceb6eaf7304c9820d3a1d5c6ab5c9ec2cb1d1381b17c81b081",
+        "deployedAt": "2026-06-06T08:31:55.868Z",
+        "token": null,
+        "configuredAt": "2026-06-06T08:35:14.589Z",
+        "lastPrice": {
+          "price": "42872155020098805",
+          "priceTimestamp": "1780692539",
+          "lastFetchTimestamp": "1780734899",
+          "status": "OK"
+        }
+      }
     }
   },
   "treasuryTradeModuleReplacement": {

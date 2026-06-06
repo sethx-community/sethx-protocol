@@ -23,10 +23,10 @@ abstract contract ChainlinkEthPairOracleBase is AccessControl, IPriceOracle {
 
     IChainlinkAggregatorV3 public immutable feed;
     uint256 public immutable maxStaleness;
-    uint8 private immutable _feedDecimals;
-    string private _pair;
-    string private _source;
-    string private _notes;
+    uint8 internal immutable _feedDecimals;
+    string internal _pair;
+    string internal _source;
+    string internal _notes;
 
     uint256 private _price;
     uint256 private _priceTimestamp;
@@ -92,7 +92,7 @@ abstract contract ChainlinkEthPairOracleBase is AccessControl, IPriceOracle {
         return _feedDecimals;
     }
 
-    function fetchPrice() external {
+    function fetchPrice() external virtual {
         (
             uint80 roundId,
             int256 answer,
@@ -109,50 +109,55 @@ abstract contract ChainlinkEthPairOracleBase is AccessControl, IPriceOracle {
         uint256 normalizedPrice = _normalize(uint256(answer));
         uint256 fetchTimestamp = block.timestamp;
 
-        _price = normalizedPrice;
-        _priceTimestamp = updatedAt;
-        _lastFetchTimestamp = fetchTimestamp;
-        _status = "OK";
+        _setPriceState(normalizedPrice, updatedAt, fetchTimestamp, "OK");
 
-        emit PriceFetched(address(feed), roundId, answer, normalizedPrice, updatedAt, fetchTimestamp);
+        emit PriceFetched(
+            address(feed),
+            roundId,
+            answer,
+            normalizedPrice,
+            updatedAt,
+            fetchTimestamp
+        );
     }
 
-    function fetchFormula() external view returns (string memory) {
-        return string.concat(
-            "// Source: ",
-            _pair,
-            " from ",
-            _source,
-            " at ",
-            Strings.toHexString(address(feed)),
-            "\n",
-            "// Formula: price = Chainlink latestRoundData().answer normalized from feed decimals to 18 decimals.\n",
-            "// Feed decimals: ",
-            Strings.toString(uint256(_feedDecimals)),
-            "; output decimals: 18; max staleness seconds: ",
-            Strings.toString(maxStaleness),
-            "\n\n",
-            "IChainlinkAggregatorV3 public immutable feed = IChainlinkAggregatorV3(",
-            Strings.toHexString(address(feed)),
-            ");\n\n",
-            "function fetchPrice() external {\n",
-            "    (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound) = feed.latestRoundData();\n",
-            "    if (answer <= 0) revert InvalidFeedAnswer();\n",
-            "    if (startedAt == 0 || updatedAt == 0) revert InvalidFeedAnswer();\n",
-            "    if (answeredInRound < roundId) revert IncompleteRound();\n",
-            "    if (maxStaleness != 0 && block.timestamp > updatedAt + maxStaleness) revert StalePrice();\n",
-            "    uint256 normalizedPrice = _normalize(uint256(answer));\n",
-            "    _price = normalizedPrice;\n",
-            "    _priceTimestamp = updatedAt;\n",
-            "    _lastFetchTimestamp = block.timestamp;\n",
-            "    _status = \"OK\";\n",
-            "}\n\n",
-            "function _normalize(uint256 rawPrice) internal view returns (uint256) {\n",
-            "    if (_feedDecimals == 18) return rawPrice;\n",
-            "    if (_feedDecimals < 18) return rawPrice * (10 ** (18 - _feedDecimals));\n",
-            "    return rawPrice / (10 ** (_feedDecimals - 18));\n",
-            "}"
-        );
+    function fetchFormula() external view virtual returns (string memory) {
+        return
+            string.concat(
+                "// Source: ",
+                _pair,
+                " from ",
+                _source,
+                " at ",
+                Strings.toHexString(address(feed)),
+                "\n",
+                "// Formula: price = Chainlink latestRoundData().answer normalized from feed decimals to 18 decimals.\n",
+                "// Feed decimals: ",
+                Strings.toString(uint256(_feedDecimals)),
+                "; output decimals: 18; max staleness seconds: ",
+                Strings.toString(maxStaleness),
+                "\n\n",
+                "IChainlinkAggregatorV3 public immutable feed = IChainlinkAggregatorV3(",
+                Strings.toHexString(address(feed)),
+                ");\n\n",
+                "function fetchPrice() external {\n",
+                "    (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound) = feed.latestRoundData();\n",
+                "    if (answer <= 0) revert InvalidFeedAnswer();\n",
+                "    if (startedAt == 0 || updatedAt == 0) revert InvalidFeedAnswer();\n",
+                "    if (answeredInRound < roundId) revert IncompleteRound();\n",
+                "    if (maxStaleness != 0 && block.timestamp > updatedAt + maxStaleness) revert StalePrice();\n",
+                "    uint256 normalizedPrice = _normalize(uint256(answer));\n",
+                "    _price = normalizedPrice;\n",
+                "    _priceTimestamp = updatedAt;\n",
+                "    _lastFetchTimestamp = block.timestamp;\n",
+                '    _status = "OK";\n',
+                "}\n\n",
+                "function _normalize(uint256 rawPrice) internal view returns (uint256) {\n",
+                "    if (_feedDecimals == 18) return rawPrice;\n",
+                "    if (_feedDecimals < 18) return rawPrice * (10 ** (18 - _feedDecimals));\n",
+                "    return rawPrice / (10 ** (_feedDecimals - 18));\n",
+                "}"
+            );
     }
 
     function metadata()
@@ -191,7 +196,20 @@ abstract contract ChainlinkEthPairOracleBase is AccessControl, IPriceOracle {
 
     function _normalize(uint256 rawPrice) internal view returns (uint256) {
         if (_feedDecimals == OUTPUT_DECIMALS) return rawPrice;
-        if (_feedDecimals < OUTPUT_DECIMALS) return rawPrice * (10 ** (OUTPUT_DECIMALS - _feedDecimals));
+        if (_feedDecimals < OUTPUT_DECIMALS)
+            return rawPrice * (10 ** (OUTPUT_DECIMALS - _feedDecimals));
         return rawPrice / (10 ** (_feedDecimals - OUTPUT_DECIMALS));
+    }
+
+    function _setPriceState(
+        uint256 price_,
+        uint256 priceTimestamp_,
+        uint256 fetchTimestamp_,
+        string memory status_
+    ) internal {
+        _price = price_;
+        _priceTimestamp = priceTimestamp_;
+        _lastFetchTimestamp = fetchTimestamp_;
+        _status = status_;
     }
 }
