@@ -1,0 +1,7 @@
+{
+  "treasurer": "0xFFb88E0a3e2fDe477107230CB412cF7c560437f1",
+  "treasuryAccount": "0x2a77F58c8A0bAa472164EF881D769FFD1e5c0a9C",
+  "treasuryTradeModule": "0x0f240f8e833A10eC00B05F182093b12b0573C868",
+  "createdAt": "2026-06-06T02:42:49.946Z",
+  "note": "Treasury account controlled by replacement TreasuryTradeModule."
+}

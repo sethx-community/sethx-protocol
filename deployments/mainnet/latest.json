@@ -101,16 +101,17 @@
     "lendingAccountFactory": "0xA0481fF3Be07142A860fbB5BeD6d79C5bb2eC17D",
     "treasuryPaymentsModule": "0xC4416a553bbe06C2aFbf367801F7CF12a3d864D9",
     "treasuryVaultModule": "0xdAEcA5ad0CeE6d197039CDAF3fEF25ea3edd7879",
-    "treasuryTradeModule": "0xAFC436afFe98164d36de81AACaAce6EbD2954Ea7",
+    "treasuryTradeModule": "0x0f240f8e833A10eC00B05F182093b12b0573C868",
     "treasuryFuturesMaintenanceModule": "0x06A3326D6a77488ad7AE1e5E010AbF075966C589",
     "sethxFeeConversionOracle": "0xF6CC59b7086C7AD12b1989EbeCF313222567181C",
     "usdcToken": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
     "usdcEthFeed": "0x986b5E1e1755e3C2440e960477f25201B0a8bbD4",
     "usdcEthOracle": "0x6786D468D6d1Eb1461Ac80d61058270Cca67d9E2",
     "passiveFuturesSnapshotPublisher": "0x6AF55Bc18D06368f8D7D13d6e2f36B3A42F596A4",
-    "passiveFuturesPoolFactory": "0xa17784eC210E72d2612eaBdB1A1691101fDD92cE"
+    "passiveFuturesPoolFactory": "0xa17784eC210E72d2612eaBdB1A1691101fDD92cE",
+    "previousTreasuryTradeModule": "0xAFC436afFe98164d36de81AACaAce6EbD2954Ea7"
   },
-  "updatedAt": "2026-06-05T07:00:25.445Z",
+  "updatedAt": "2026-06-06T02:42:49.946Z",
   "recovery": {
     "recoveredFromTokenDeploymentTx": "0x34a2368a7f1b39245876cc005e680d0bc33682684632ff8b63e4cf0f5c190afe",
     "recoveredSethxToken": "0xd603b12f7458d44ddf30e48e72c640c9b6f9d61f",
@@ -604,5 +605,15 @@
       "replacementMaxStaleness": "0",
       "reason": "Original USDC/ETH oracle was deployed with immutable maxStaleness=86400 and remained PENDING because adapter-level staleness blocked fetchPrice. Replacement disables adapter-level staleness; PriceManager freshness remains responsible for protocol usage."
     }
+  },
+  "treasuryTradeModuleReplacement": {
+    "replacedAt": "2026-06-06T02:42:49.946Z",
+    "resumedAt": "2026-06-06T02:42:49.946Z",
+    "oldTreasuryTradeModule": "0xAFC436afFe98164d36de81AACaAce6EbD2954Ea7",
+    "newTreasuryTradeModule": "0x0f240f8e833A10eC00B05F182093b12b0573C868",
+    "newTreasuryAccount": "0x2a77F58c8A0bAa472164EF881D769FFD1e5c0a9C",
+    "treasurer": "0xFFb88E0a3e2fDe477107230CB412cF7c560437f1",
+    "actionPermissions": "31",
+    "reason": "Replacement allows native ETH token-spot pairs by permitting one side of baseToken/quoteToken to be address(0)."
   }
 }

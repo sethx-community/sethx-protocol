@@ -1,0 +1,8 @@
+{
+  "replacedAt": "2026-06-06T02:42:49.946Z",
+  "oldTreasuryTradeModule": "0xAFC436afFe98164d36de81AACaAce6EbD2954Ea7",
+  "newTreasuryTradeModule": "0x0f240f8e833A10eC00B05F182093b12b0573C868",
+  "newTreasuryAccount": "0x2a77F58c8A0bAa472164EF881D769FFD1e5c0a9C",
+  "treasurer": "0xFFb88E0a3e2fDe477107230CB412cF7c560437f1",
+  "actionPermissions": "31"
+}

@@ -407,9 +407,7 @@ contract TreasuryTradeModule is TreasuryModuleBase {
         _requireActionPermission(msg.sender, ACTION_SPOT_TRADE);
         _requireTreasurerAccountAccess(msg.sender, account);
 
-        if (orderBook == address(0) || baseToken == address(0) || quoteToken == address(0)) {
-            revert InvalidAddress();
-        }
+        if (orderBook == address(0)) revert InvalidAddress();
         if (price == 0 || amount == 0) revert InvalidAmount();
 
         Account(payable(account)).placeOrderTokenSpot(
