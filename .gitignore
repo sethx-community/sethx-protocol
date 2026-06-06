@@ -20,6 +20,7 @@ scripts/admin/
 .env.*
 !.env.example
 secrets.json
+*.zip
 
 # Local and Testnet Deployment Records
 deployments/local/
