@@ -1,0 +1,1552 @@
+{
+  "generatedAt": "2026-06-12T15:53:45.999Z",
+  "networkName": "mainnet",
+  "deploymentPath": "D:\\Buck Consultants Dropbox\\arthur.huits@buckconsultants.cw Huits\\Personeel Buck\\AHU\\Arthur prive\\sethx-community-development\\sethx-protocol\\deployments\\mainnet\\latest.json",
+  "total": 55,
+  "verified": 55,
+  "unverified": 0,
+  "unknown": 0,
+  "skipped": 0,
+  "entries": [
+    {
+      "name": "SethxToken",
+      "address": "0xd603b12f7458d44ddf30e48e72c640c9b6f9d61f",
+      "contract": "contracts/token/SethxToken.sol:SethxToken",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as SethxToken.",
+          "url": "https://etherscan.io/address/0xd603b12f7458d44ddf30e48e72c640c9b6f9d61f#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as SethxToken.",
+          "url": "https://eth.blockscout.com/address/0xd603b12f7458d44ddf30e48e72c640c9b6f9d61f#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0xd603b12f7458d44ddf30e48e72c640c9b6f9d61f"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:17.374Z"
+    },
+    {
+      "name": "FounderTokenTimelock founder-1-63072000s",
+      "address": "0x0eb8ad5a29e8b0b9d8bc881b0616cdfd18dbab5c",
+      "contract": "contracts/token/FounderTokenTimelock.sol:FounderTokenTimelock",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as FounderTokenTimelock.",
+          "url": "https://etherscan.io/address/0x0eb8ad5a29e8b0b9d8bc881b0616cdfd18dbab5c#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as FounderTokenTimelock.",
+          "url": "https://eth.blockscout.com/address/0x0eb8ad5a29e8b0b9d8bc881b0616cdfd18dbab5c#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x0eb8ad5a29e8b0b9d8bc881b0616cdfd18dbab5c"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:17.713Z"
+    },
+    {
+      "name": "FounderTokenTimelock founder-1-157680000s",
+      "address": "0xcfce437e96446cd267a2065fb061e7bb84ba9ee9",
+      "contract": "contracts/token/FounderTokenTimelock.sol:FounderTokenTimelock",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as FounderTokenTimelock.",
+          "url": "https://etherscan.io/address/0xcfce437e96446cd267a2065fb061e7bb84ba9ee9#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as FounderTokenTimelock.",
+          "url": "https://eth.blockscout.com/address/0xcfce437e96446cd267a2065fb061e7bb84ba9ee9#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0xcfce437e96446cd267a2065fb061e7bb84ba9ee9"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:18.310Z"
+    },
+    {
+      "name": "FounderTokenTimelock founder-2-63072000s",
+      "address": "0x7ecb3cfe513fc5d50dfd1e692eb238b9ac16e4ba",
+      "contract": "contracts/token/FounderTokenTimelock.sol:FounderTokenTimelock",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as FounderTokenTimelock.",
+          "url": "https://etherscan.io/address/0x7ecb3cfe513fc5d50dfd1e692eb238b9ac16e4ba#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as FounderTokenTimelock.",
+          "url": "https://eth.blockscout.com/address/0x7ecb3cfe513fc5d50dfd1e692eb238b9ac16e4ba#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x7ecb3cfe513fc5d50dfd1e692eb238b9ac16e4ba"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:18.639Z"
+    },
+    {
+      "name": "FounderTokenTimelock founder-2-157680000s",
+      "address": "0x79db98abb1010fb4ac01a3190ad0e58c86b280e5",
+      "contract": "contracts/token/FounderTokenTimelock.sol:FounderTokenTimelock",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as FounderTokenTimelock.",
+          "url": "https://etherscan.io/address/0x79db98abb1010fb4ac01a3190ad0e58c86b280e5#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as FounderTokenTimelock.",
+          "url": "https://eth.blockscout.com/address/0x79db98abb1010fb4ac01a3190ad0e58c86b280e5#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x79db98abb1010fb4ac01a3190ad0e58c86b280e5"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:18.973Z"
+    },
+    {
+      "name": "FounderTokenTimelock founder-3-63072000s",
+      "address": "0x32bb020af61c9989cf548cea9e1535f832fd264e",
+      "contract": "contracts/token/FounderTokenTimelock.sol:FounderTokenTimelock",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as FounderTokenTimelock.",
+          "url": "https://etherscan.io/address/0x32bb020af61c9989cf548cea9e1535f832fd264e#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as FounderTokenTimelock.",
+          "url": "https://eth.blockscout.com/address/0x32bb020af61c9989cf548cea9e1535f832fd264e#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x32bb020af61c9989cf548cea9e1535f832fd264e"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:19.305Z"
+    },
+    {
+      "name": "FounderTokenTimelock founder-3-157680000s",
+      "address": "0x919ed980d36c4731bbae285c738384178eb545b2",
+      "contract": "contracts/token/FounderTokenTimelock.sol:FounderTokenTimelock",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as FounderTokenTimelock.",
+          "url": "https://etherscan.io/address/0x919ed980d36c4731bbae285c738384178eb545b2#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as FounderTokenTimelock.",
+          "url": "https://eth.blockscout.com/address/0x919ed980d36c4731bbae285c738384178eb545b2#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x919ed980d36c4731bbae285c738384178eb545b2"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:19.729Z"
+    },
+    {
+      "name": "TreasuryAuthority",
+      "address": "0x5c396c7d1ac1701c37ea696a4589a9b1ed5352f7",
+      "contract": "contracts/treasury/TreasuryAuthority.sol:TreasuryAuthority",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as TreasuryAuthority.",
+          "url": "https://etherscan.io/address/0x5c396c7d1ac1701c37ea696a4589a9b1ed5352f7#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as TreasuryAuthority.",
+          "url": "https://eth.blockscout.com/address/0x5c396c7d1ac1701c37ea696a4589a9b1ed5352f7#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x5c396c7d1ac1701c37ea696a4589a9b1ed5352f7"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:20.128Z"
+    },
+    {
+      "name": "ProtocolTreasury",
+      "address": "0xf11d44d2e793e3d30509bc8c2a224398b27b61ef",
+      "contract": "contracts/treasury/ProtocolTreasury.sol:ProtocolTreasury",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as ProtocolTreasury.",
+          "url": "https://etherscan.io/address/0xf11d44d2e793e3d30509bc8c2a224398b27b61ef#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as ProtocolTreasury.",
+          "url": "https://eth.blockscout.com/address/0xf11d44d2e793e3d30509bc8c2a224398b27b61ef#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0xf11d44d2e793e3d30509bc8c2a224398b27b61ef"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:20.476Z"
+    },
+    {
+      "name": "SethxTimelock",
+      "address": "0x5fa4E0674Dff940A07f097195De83Dfd14257e48",
+      "contract": "contracts/governance/SethxTimelock.sol:SethxTimelock",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as SethxTimelock.",
+          "url": "https://etherscan.io/address/0x5fa4E0674Dff940A07f097195De83Dfd14257e48#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as SethxTimelock.",
+          "url": "https://eth.blockscout.com/address/0x5fa4E0674Dff940A07f097195De83Dfd14257e48#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x5fa4E0674Dff940A07f097195De83Dfd14257e48"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:20.849Z"
+    },
+    {
+      "name": "SethxGovernor",
+      "address": "0x85b887426f7B27Fba11DbD94c722a70242A81691",
+      "contract": "contracts/governance/SethxGovernor.sol:SethxGovernor",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as SethxGovernor.",
+          "url": "https://etherscan.io/address/0x85b887426f7B27Fba11DbD94c722a70242A81691#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as SethxGovernor.",
+          "url": "https://eth.blockscout.com/address/0x85b887426f7B27Fba11DbD94c722a70242A81691#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x85b887426f7B27Fba11DbD94c722a70242A81691"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:21.258Z"
+    },
+    {
+      "name": "AccountRegistry",
+      "address": "0x38D4F2F307657Cc6972711fb1cA52071E9805e12",
+      "contract": "contracts/accounts/AccountRegistry.sol:AccountRegistry",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as AccountRegistry.",
+          "url": "https://etherscan.io/address/0x38D4F2F307657Cc6972711fb1cA52071E9805e12#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as AccountRegistry.",
+          "url": "https://eth.blockscout.com/address/0x38D4F2F307657Cc6972711fb1cA52071E9805e12#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x38D4F2F307657Cc6972711fb1cA52071E9805e12"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:21.653Z"
+    },
+    {
+      "name": "SethxVault",
+      "address": "0x2D598EEe72cBEAf2Fa020D1c068051D4801Ba3D4",
+      "contract": "contracts/vault/SethxVault.sol:SethxVault",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as SethxVault.",
+          "url": "https://etherscan.io/address/0x2D598EEe72cBEAf2Fa020D1c068051D4801Ba3D4#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as SethxVault.",
+          "url": "https://eth.blockscout.com/address/0x2D598EEe72cBEAf2Fa020D1c068051D4801Ba3D4#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Partial match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x2D598EEe72cBEAf2Fa020D1c068051D4801Ba3D4"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:22.364Z"
+    },
+    {
+      "name": "PriceManager",
+      "address": "0xA712C58cF895E7e61b58cfdFE0d8114e89348466",
+      "contract": "contracts/oracle/PriceManager.sol:PriceManager",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as PriceManager.",
+          "url": "https://etherscan.io/address/0xA712C58cF895E7e61b58cfdFE0d8114e89348466#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as PriceManager.",
+          "url": "https://eth.blockscout.com/address/0xA712C58cF895E7e61b58cfdFE0d8114e89348466#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0xA712C58cF895E7e61b58cfdFE0d8114e89348466"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:22.769Z"
+    },
+    {
+      "name": "FeeManager",
+      "address": "0x3ed08Faf6b891f2Ca2736248bEd3A0E913cdcbeE",
+      "contract": "contracts/oracle/FeeManager.sol:FeeManager",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as FeeManager.",
+          "url": "https://etherscan.io/address/0x3ed08Faf6b891f2Ca2736248bEd3A0E913cdcbeE#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as FeeManager.",
+          "url": "https://eth.blockscout.com/address/0x3ed08Faf6b891f2Ca2736248bEd3A0E913cdcbeE#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x3ed08Faf6b891f2Ca2736248bEd3A0E913cdcbeE"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:23.117Z"
+    },
+    {
+      "name": "TokenSpotOrderBook",
+      "address": "0x772785E3F84Ee14341FddCD6196ad0Daa977ed32",
+      "contract": "contracts/markets/spot/TokenSpotOrderBook.sol:TokenSpotOrderBook",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as TokenSpotOrderBook.",
+          "url": "https://etherscan.io/address/0x772785E3F84Ee14341FddCD6196ad0Daa977ed32#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as TokenSpotOrderBook.",
+          "url": "https://eth.blockscout.com/address/0x772785E3F84Ee14341FddCD6196ad0Daa977ed32#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Partial match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x772785E3F84Ee14341FddCD6196ad0Daa977ed32"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:23.857Z"
+    },
+    {
+      "name": "NFTSpotOrderBook",
+      "address": "0x87935d67FfEA9179d8B308b579409aF23C119D3F",
+      "contract": "contracts/markets/spot/NFTSpotOrderBook.sol:NFTSpotOrderBook",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as NFTSpotOrderBook.",
+          "url": "https://etherscan.io/address/0x87935d67FfEA9179d8B308b579409aF23C119D3F#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as NFTSpotOrderBook.",
+          "url": "https://eth.blockscout.com/address/0x87935d67FfEA9179d8B308b579409aF23C119D3F#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Partial match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x87935d67FfEA9179d8B308b579409aF23C119D3F"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:24.554Z"
+    },
+    {
+      "name": "OptionContract",
+      "address": "0xf549EE616B30fd128dC11797Bdb0E0664697A428",
+      "contract": "contracts/markets/options/OptionContract.sol:OptionContract",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as OptionContract.",
+          "url": "https://etherscan.io/address/0xf549EE616B30fd128dC11797Bdb0E0664697A428#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as OptionContract.",
+          "url": "https://eth.blockscout.com/address/0xf549EE616B30fd128dC11797Bdb0E0664697A428#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Partial match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0xf549EE616B30fd128dC11797Bdb0E0664697A428"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:25.283Z"
+    },
+    {
+      "name": "OptionsOrderBook",
+      "address": "0x53a30A181F680575E5f0e5E37258d890087dA724",
+      "contract": "contracts/markets/options/OptionsOrderBook.sol:OptionsOrderBook",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as OptionsOrderBook.",
+          "url": "https://etherscan.io/address/0x53a30A181F680575E5f0e5E37258d890087dA724#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as OptionsOrderBook.",
+          "url": "https://eth.blockscout.com/address/0x53a30A181F680575E5f0e5E37258d890087dA724#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Partial match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x53a30A181F680575E5f0e5E37258d890087dA724"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:26.028Z"
+    },
+    {
+      "name": "BinaryMarginOptionContract",
+      "address": "0x3A7C03648081f0aCDe8bcD6436A2D286c6C297ae",
+      "contract": "contracts/markets/margin/BinaryMarginOptionContract.sol:BinaryMarginOptionContract",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as BinaryMarginOptionContract.",
+          "url": "https://etherscan.io/address/0x3A7C03648081f0aCDe8bcD6436A2D286c6C297ae#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as BinaryMarginOptionContract.",
+          "url": "https://eth.blockscout.com/address/0x3A7C03648081f0aCDe8bcD6436A2D286c6C297ae#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Partial match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x3A7C03648081f0aCDe8bcD6436A2D286c6C297ae"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:26.772Z"
+    },
+    {
+      "name": "BinaryMarginOptionsOrderBook",
+      "address": "0xD94CF444314279A88FEc8167912B9eE4310bbaFb",
+      "contract": "contracts/markets/margin/BinaryMarginOptionsOrderBook.sol:BinaryMarginOptionsOrderBook",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as BinaryMarginOptionsOrderBook.",
+          "url": "https://etherscan.io/address/0xD94CF444314279A88FEc8167912B9eE4310bbaFb#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as BinaryMarginOptionsOrderBook.",
+          "url": "https://eth.blockscout.com/address/0xD94CF444314279A88FEc8167912B9eE4310bbaFb#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Partial match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0xD94CF444314279A88FEc8167912B9eE4310bbaFb"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:27.912Z"
+    },
+    {
+      "name": "MarginOptionContract",
+      "address": "0x79fC4fA292c5451c0e6ff22EC3fe249CBECCf344",
+      "contract": "contracts/markets/margin/MarginOptionContract.sol:MarginOptionContract",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as MarginOptionContract.",
+          "url": "https://etherscan.io/address/0x79fC4fA292c5451c0e6ff22EC3fe249CBECCf344#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as MarginOptionContract.",
+          "url": "https://eth.blockscout.com/address/0x79fC4fA292c5451c0e6ff22EC3fe249CBECCf344#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Partial match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x79fC4fA292c5451c0e6ff22EC3fe249CBECCf344"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:28.657Z"
+    },
+    {
+      "name": "MarginOptionsOrderBook",
+      "address": "0xBCcC49F3FDf0b3da79DFf8cc7a947Fccd3954529",
+      "contract": "contracts/markets/margin/MarginOptionsOrderBook.sol:MarginOptionsOrderBook",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as MarginOptionsOrderBook.",
+          "url": "https://etherscan.io/address/0xBCcC49F3FDf0b3da79DFf8cc7a947Fccd3954529#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as MarginOptionsOrderBook.",
+          "url": "https://eth.blockscout.com/address/0xBCcC49F3FDf0b3da79DFf8cc7a947Fccd3954529#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Partial match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0xBCcC49F3FDf0b3da79DFf8cc7a947Fccd3954529"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:29.446Z"
+    },
+    {
+      "name": "FuturesPositionStore",
+      "address": "0x9648BEb66cA9f1c1Dfdc432B68730d11f1313A36",
+      "contract": "contracts/markets/futures/FuturesPositionStore.sol:FuturesPositionStore",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as FuturesPositionStore.",
+          "url": "https://etherscan.io/address/0x9648BEb66cA9f1c1Dfdc432B68730d11f1313A36#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as FuturesPositionStore.",
+          "url": "https://eth.blockscout.com/address/0x9648BEb66cA9f1c1Dfdc432B68730d11f1313A36#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x9648BEb66cA9f1c1Dfdc432B68730d11f1313A36"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:30.193Z"
+    },
+    {
+      "name": "FuturesContract",
+      "address": "0x46977c7125Df736F16822aad14C7499A33A157fa",
+      "contract": "contracts/markets/futures/FuturesContract.sol:FuturesContract",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as FuturesContract.",
+          "url": "https://etherscan.io/address/0x46977c7125Df736F16822aad14C7499A33A157fa#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as FuturesContract.",
+          "url": "https://eth.blockscout.com/address/0x46977c7125Df736F16822aad14C7499A33A157fa#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x46977c7125Df736F16822aad14C7499A33A157fa"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:30.744Z"
+    },
+    {
+      "name": "FuturesOrderBook",
+      "address": "0xFF842278cdBDA0Be408aFb657712EC194CfA14E6",
+      "contract": "contracts/markets/futures/FuturesOrderBook.sol:FuturesOrderBook",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as FuturesOrderBook.",
+          "url": "https://etherscan.io/address/0xFF842278cdBDA0Be408aFb657712EC194CfA14E6#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as FuturesOrderBook.",
+          "url": "https://eth.blockscout.com/address/0xFF842278cdBDA0Be408aFb657712EC194CfA14E6#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0xFF842278cdBDA0Be408aFb657712EC194CfA14E6"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:31.949Z"
+    },
+    {
+      "name": "LendingContract",
+      "address": "0xC9B4Afe942F1cfBb20fBf28D32d4218162e0Eccb",
+      "contract": "contracts/markets/lending/LendingContract.sol:LendingContract",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as LendingContract.",
+          "url": "https://etherscan.io/address/0xC9B4Afe942F1cfBb20fBf28D32d4218162e0Eccb#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as LendingContract.",
+          "url": "https://eth.blockscout.com/address/0xC9B4Afe942F1cfBb20fBf28D32d4218162e0Eccb#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0xC9B4Afe942F1cfBb20fBf28D32d4218162e0Eccb"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:33.235Z"
+    },
+    {
+      "name": "LendingOrderBook",
+      "address": "0x51572293e989e1B5b1C58b497ad5De8d99997638",
+      "contract": "contracts/markets/lending/LendingOrderBook.sol:LendingOrderBook",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as LendingOrderBook.",
+          "url": "https://etherscan.io/address/0x51572293e989e1B5b1C58b497ad5De8d99997638#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as LendingOrderBook.",
+          "url": "https://eth.blockscout.com/address/0x51572293e989e1B5b1C58b497ad5De8d99997638#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x51572293e989e1B5b1C58b497ad5De8d99997638"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:34.036Z"
+    },
+    {
+      "name": "OptionsValuationAdapter",
+      "address": "0x1dBd8b5e93579F12126E95970bF557EA94064b8e",
+      "contract": "contracts/markets/lending/OptionsValuationAdapter.sol:OptionsValuationAdapter",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as OptionsValuationAdapter.",
+          "url": "https://etherscan.io/address/0x1dBd8b5e93579F12126E95970bF557EA94064b8e#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as OptionsValuationAdapter.",
+          "url": "https://eth.blockscout.com/address/0x1dBd8b5e93579F12126E95970bF557EA94064b8e#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x1dBd8b5e93579F12126E95970bF557EA94064b8e"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:34.449Z"
+    },
+    {
+      "name": "FuturesValuationAdapter",
+      "address": "0x8691Cef4452Fa8B62858954e9946E1BC0a0366FD",
+      "contract": "contracts/markets/lending/FuturesValuationAdapter.sol:FuturesValuationAdapter",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as FuturesValuationAdapter.",
+          "url": "https://etherscan.io/address/0x8691Cef4452Fa8B62858954e9946E1BC0a0366FD#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as FuturesValuationAdapter.",
+          "url": "https://eth.blockscout.com/address/0x8691Cef4452Fa8B62858954e9946E1BC0a0366FD#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x8691Cef4452Fa8B62858954e9946E1BC0a0366FD"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:34.819Z"
+    },
+    {
+      "name": "ValuationModule",
+      "address": "0x1ED0b607F3bc504a956fdEB56eB16B6917593DcD",
+      "contract": "contracts/markets/lending/ValuationModule.sol:ValuationModule",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as ValuationModule.",
+          "url": "https://etherscan.io/address/0x1ED0b607F3bc504a956fdEB56eB16B6917593DcD#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as ValuationModule.",
+          "url": "https://eth.blockscout.com/address/0x1ED0b607F3bc504a956fdEB56eB16B6917593DcD#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x1ED0b607F3bc504a956fdEB56eB16B6917593DcD"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:35.216Z"
+    },
+    {
+      "name": "RiskModule",
+      "address": "0x546b9fC3960437271EceEcEfed0afD443bA22A13",
+      "contract": "contracts/markets/lending/RiskModule.sol:RiskModule",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as RiskModule.",
+          "url": "https://etherscan.io/address/0x546b9fC3960437271EceEcEfed0afD443bA22A13#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as RiskModule.",
+          "url": "https://eth.blockscout.com/address/0x546b9fC3960437271EceEcEfed0afD443bA22A13#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x546b9fC3960437271EceEcEfed0afD443bA22A13"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:35.688Z"
+    },
+    {
+      "name": "LiquidationEngine",
+      "address": "0x22E5584D24A7aEf3E372498E6B4D012d290c3A08",
+      "contract": "contracts/markets/lending/LiquidationEngine.sol:LiquidationEngine",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as LiquidationEngine.",
+          "url": "https://etherscan.io/address/0x22E5584D24A7aEf3E372498E6B4D012d290c3A08#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as LiquidationEngine.",
+          "url": "https://eth.blockscout.com/address/0x22E5584D24A7aEf3E372498E6B4D012d290c3A08#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x22E5584D24A7aEf3E372498E6B4D012d290c3A08"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:36.087Z"
+    },
+    {
+      "name": "AccountFactory",
+      "address": "0x599298246488e79e30b73f083a980F1561F1E347",
+      "contract": "contracts/accounts/AccountFactory.sol:AccountFactory",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as AccountFactory.",
+          "url": "https://etherscan.io/address/0x599298246488e79e30b73f083a980F1561F1E347#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as AccountFactory.",
+          "url": "https://eth.blockscout.com/address/0x599298246488e79e30b73f083a980F1561F1E347#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x599298246488e79e30b73f083a980F1561F1E347"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:36.460Z"
+    },
+    {
+      "name": "LendingAccountFactory",
+      "address": "0xA0481fF3Be07142A860fbB5BeD6d79C5bb2eC17D",
+      "contract": "contracts/accounts/LendingAccountFactory.sol:LendingAccountFactory",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as LendingAccountFactory.",
+          "url": "https://etherscan.io/address/0xA0481fF3Be07142A860fbB5BeD6d79C5bb2eC17D#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as LendingAccountFactory.",
+          "url": "https://eth.blockscout.com/address/0xA0481fF3Be07142A860fbB5BeD6d79C5bb2eC17D#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0xA0481fF3Be07142A860fbB5BeD6d79C5bb2eC17D"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:36.833Z"
+    },
+    {
+      "name": "TreasuryPaymentsModule",
+      "address": "0xC4416a553bbe06C2aFbf367801F7CF12a3d864D9",
+      "contract": "contracts/treasury/TreasuryPaymentsModule.sol:TreasuryPaymentsModule",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as TreasuryPaymentsModule.",
+          "url": "https://etherscan.io/address/0xC4416a553bbe06C2aFbf367801F7CF12a3d864D9#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as TreasuryPaymentsModule.",
+          "url": "https://eth.blockscout.com/address/0xC4416a553bbe06C2aFbf367801F7CF12a3d864D9#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0xC4416a553bbe06C2aFbf367801F7CF12a3d864D9"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:37.210Z"
+    },
+    {
+      "name": "TreasuryVaultModule",
+      "address": "0xdAEcA5ad0CeE6d197039CDAF3fEF25ea3edd7879",
+      "contract": "contracts/treasury/TreasuryVaultModule.sol:TreasuryVaultModule",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as TreasuryVaultModule.",
+          "url": "https://etherscan.io/address/0xdAEcA5ad0CeE6d197039CDAF3fEF25ea3edd7879#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as TreasuryVaultModule.",
+          "url": "https://eth.blockscout.com/address/0xdAEcA5ad0CeE6d197039CDAF3fEF25ea3edd7879#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0xdAEcA5ad0CeE6d197039CDAF3fEF25ea3edd7879"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:37.722Z"
+    },
+    {
+      "name": "TreasuryTradeModule",
+      "address": "0x0f240f8e833A10eC00B05F182093b12b0573C868",
+      "contract": "contracts/treasury/TreasuryTradeModule.sol:TreasuryTradeModule",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as TreasuryTradeModule.",
+          "url": "https://etherscan.io/address/0x0f240f8e833A10eC00B05F182093b12b0573C868#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as TreasuryTradeModule.",
+          "url": "https://eth.blockscout.com/address/0x0f240f8e833A10eC00B05F182093b12b0573C868#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x0f240f8e833A10eC00B05F182093b12b0573C868"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:38.297Z"
+    },
+    {
+      "name": "TreasuryFuturesMaintenanceModule",
+      "address": "0x06A3326D6a77488ad7AE1e5E010AbF075966C589",
+      "contract": "contracts/treasury/TreasuryFuturesMaintenanceModule.sol:TreasuryFuturesMaintenanceModule",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as TreasuryFuturesMaintenanceModule.",
+          "url": "https://etherscan.io/address/0x06A3326D6a77488ad7AE1e5E010AbF075966C589#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as TreasuryFuturesMaintenanceModule.",
+          "url": "https://eth.blockscout.com/address/0x06A3326D6a77488ad7AE1e5E010AbF075966C589#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x06A3326D6a77488ad7AE1e5E010AbF075966C589"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:38.747Z"
+    },
+    {
+      "name": "SethxFeeConversionOracle",
+      "address": "0xF6CC59b7086C7AD12b1989EbeCF313222567181C",
+      "contract": "contracts/oracle/SethxFeeConversionOracle.sol:SethxFeeConversionOracle",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as SethxFeeConversionOracle.",
+          "url": "https://etherscan.io/address/0xF6CC59b7086C7AD12b1989EbeCF313222567181C#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as SethxFeeConversionOracle.",
+          "url": "https://eth.blockscout.com/address/0xF6CC59b7086C7AD12b1989EbeCF313222567181C#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0xF6CC59b7086C7AD12b1989EbeCF313222567181C"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:39.234Z"
+    },
+    {
+      "name": "ChainlinkUsdcEthOracle",
+      "address": "0x6786D468D6d1Eb1461Ac80d61058270Cca67d9E2",
+      "contract": "contracts/oracle/ChainlinkUsdcEthOracle.sol:ChainlinkUsdcEthOracle",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as ChainlinkUsdcEthOracle.",
+          "url": "https://etherscan.io/address/0x6786D468D6d1Eb1461Ac80d61058270Cca67d9E2#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as ChainlinkUsdcEthOracle.",
+          "url": "https://eth.blockscout.com/address/0x6786D468D6d1Eb1461Ac80d61058270Cca67d9E2#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x6786D468D6d1Eb1461Ac80d61058270Cca67d9E2"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:39.627Z"
+    },
+    {
+      "name": "PassiveFuturesSnapshotPublisher",
+      "address": "0x6AF55Bc18D06368f8D7D13d6e2f36B3A42F596A4",
+      "contract": "contracts/treasury/PassiveFuturesSnapshotPublisher.sol:PassiveFuturesSnapshotPublisher",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as PassiveFuturesSnapshotPublisher.",
+          "url": "https://etherscan.io/address/0x6AF55Bc18D06368f8D7D13d6e2f36B3A42F596A4#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as PassiveFuturesSnapshotPublisher.",
+          "url": "https://eth.blockscout.com/address/0x6AF55Bc18D06368f8D7D13d6e2f36B3A42F596A4#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x6AF55Bc18D06368f8D7D13d6e2f36B3A42F596A4"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:40.022Z"
+    },
+    {
+      "name": "PassiveFuturesPoolFactory",
+      "address": "0xa17784eC210E72d2612eaBdB1A1691101fDD92cE",
+      "contract": "contracts/treasury/PassiveFuturesPoolFactory.sol:PassiveFuturesPoolFactory",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as PassiveFuturesPoolFactory.",
+          "url": "https://etherscan.io/address/0xa17784eC210E72d2612eaBdB1A1691101fDD92cE#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as PassiveFuturesPoolFactory.",
+          "url": "https://eth.blockscout.com/address/0xa17784eC210E72d2612eaBdB1A1691101fDD92cE#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0xa17784eC210E72d2612eaBdB1A1691101fDD92cE"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:40.390Z"
+    },
+    {
+      "name": "ChainlinkDirectEthPairOracle BTC/ETH",
+      "address": "0x973890649625573475dba1f54C16A453D7161028",
+      "contract": "contracts/oracle/ChainlinkDirectEthPairOracle.sol:ChainlinkDirectEthPairOracle",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as ChainlinkDirectEthPairOracle.",
+          "url": "https://etherscan.io/address/0x973890649625573475dba1f54C16A453D7161028#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as ChainlinkDirectEthPairOracle.",
+          "url": "https://eth.blockscout.com/address/0x973890649625573475dba1f54C16A453D7161028#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x973890649625573475dba1f54C16A453D7161028"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:40.975Z"
+    },
+    {
+      "name": "ChainlinkDirectEthPairOracle LINK/ETH",
+      "address": "0x2547f566463C2EE6B72b61034596021df735CE11",
+      "contract": "contracts/oracle/ChainlinkDirectEthPairOracle.sol:ChainlinkDirectEthPairOracle",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as ChainlinkDirectEthPairOracle.",
+          "url": "https://etherscan.io/address/0x2547f566463C2EE6B72b61034596021df735CE11#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as ChainlinkDirectEthPairOracle.",
+          "url": "https://eth.blockscout.com/address/0x2547f566463C2EE6B72b61034596021df735CE11#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Partial match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x2547f566463C2EE6B72b61034596021df735CE11"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:41.801Z"
+    },
+    {
+      "name": "ChainlinkCrossRateEthOracle UNI/ETH",
+      "address": "0x33648629fc1EaAC377A057ff7C76ac1eAAD35bDD",
+      "contract": "contracts/oracle/ChainlinkCrossRateEthOracle.sol:ChainlinkCrossRateEthOracle",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as ChainlinkCrossRateEthOracle.",
+          "url": "https://etherscan.io/address/0x33648629fc1EaAC377A057ff7C76ac1eAAD35bDD#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as ChainlinkCrossRateEthOracle.",
+          "url": "https://eth.blockscout.com/address/0x33648629fc1EaAC377A057ff7C76ac1eAAD35bDD#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x33648629fc1EaAC377A057ff7C76ac1eAAD35bDD"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:42.249Z"
+    },
+    {
+      "name": "ChainlinkCrossRateEthOracle AAVE/ETH",
+      "address": "0xdD84A0D493ca8564e9E57EC72871547283D7D2Db",
+      "contract": "contracts/oracle/ChainlinkCrossRateEthOracle.sol:ChainlinkCrossRateEthOracle",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as ChainlinkCrossRateEthOracle.",
+          "url": "https://etherscan.io/address/0xdD84A0D493ca8564e9E57EC72871547283D7D2Db#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as ChainlinkCrossRateEthOracle.",
+          "url": "https://eth.blockscout.com/address/0xdD84A0D493ca8564e9E57EC72871547283D7D2Db#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0xdD84A0D493ca8564e9E57EC72871547283D7D2Db"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:42.712Z"
+    },
+    {
+      "name": "ChainlinkDirectEthPairOracle LDO/ETH",
+      "address": "0x20104997F2E294726669C766958Da1a5cf719ceB",
+      "contract": "contracts/oracle/ChainlinkDirectEthPairOracle.sol:ChainlinkDirectEthPairOracle",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as ChainlinkDirectEthPairOracle.",
+          "url": "https://etherscan.io/address/0x20104997F2E294726669C766958Da1a5cf719ceB#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as ChainlinkDirectEthPairOracle.",
+          "url": "https://eth.blockscout.com/address/0x20104997F2E294726669C766958Da1a5cf719ceB#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Partial match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x20104997F2E294726669C766958Da1a5cf719ceB"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:43.426Z"
+    },
+    {
+      "name": "ChainlinkCrossRateEthOracle DAI/ETH",
+      "address": "0x26E94Ec0885D93880eb05830317b024054fb6e16",
+      "contract": "contracts/oracle/ChainlinkCrossRateEthOracle.sol:ChainlinkCrossRateEthOracle",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as ChainlinkCrossRateEthOracle.",
+          "url": "https://etherscan.io/address/0x26E94Ec0885D93880eb05830317b024054fb6e16#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as ChainlinkCrossRateEthOracle.",
+          "url": "https://eth.blockscout.com/address/0x26E94Ec0885D93880eb05830317b024054fb6e16#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x26E94Ec0885D93880eb05830317b024054fb6e16"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:43.796Z"
+    },
+    {
+      "name": "ChainlinkCrossRateEthOracle EUR/ETH",
+      "address": "0xABc9618ea1225fdB0315f7523851Da9E4dDe3FE3",
+      "contract": "contracts/oracle/ChainlinkCrossRateEthOracle.sol:ChainlinkCrossRateEthOracle",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as ChainlinkCrossRateEthOracle.",
+          "url": "https://etherscan.io/address/0xABc9618ea1225fdB0315f7523851Da9E4dDe3FE3#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as ChainlinkCrossRateEthOracle.",
+          "url": "https://eth.blockscout.com/address/0xABc9618ea1225fdB0315f7523851Da9E4dDe3FE3#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0xABc9618ea1225fdB0315f7523851Da9E4dDe3FE3"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:44.154Z"
+    },
+    {
+      "name": "ChainlinkCrossRateEthOracle GBP/ETH",
+      "address": "0x8c28eC77E3514d551A9016296B46A79650043290",
+      "contract": "contracts/oracle/ChainlinkCrossRateEthOracle.sol:ChainlinkCrossRateEthOracle",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as ChainlinkCrossRateEthOracle.",
+          "url": "https://etherscan.io/address/0x8c28eC77E3514d551A9016296B46A79650043290#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as ChainlinkCrossRateEthOracle.",
+          "url": "https://eth.blockscout.com/address/0x8c28eC77E3514d551A9016296B46A79650043290#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x8c28eC77E3514d551A9016296B46A79650043290"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:44.524Z"
+    },
+    {
+      "name": "ChainlinkCrossRateEthOracle JPY/ETH",
+      "address": "0xc003122aD00C673838272385e3aa0dd2C4671795",
+      "contract": "contracts/oracle/ChainlinkCrossRateEthOracle.sol:ChainlinkCrossRateEthOracle",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as ChainlinkCrossRateEthOracle.",
+          "url": "https://etherscan.io/address/0xc003122aD00C673838272385e3aa0dd2C4671795#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as ChainlinkCrossRateEthOracle.",
+          "url": "https://eth.blockscout.com/address/0xc003122aD00C673838272385e3aa0dd2C4671795#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0xc003122aD00C673838272385e3aa0dd2C4671795"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:44.889Z"
+    },
+    {
+      "name": "ChainlinkCrossRateEthOracle CHF/ETH",
+      "address": "0x277757Ca4B34De35037009690d8eACa6767060AC",
+      "contract": "contracts/oracle/ChainlinkCrossRateEthOracle.sol:ChainlinkCrossRateEthOracle",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as ChainlinkCrossRateEthOracle.",
+          "url": "https://etherscan.io/address/0x277757Ca4B34De35037009690d8eACa6767060AC#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as ChainlinkCrossRateEthOracle.",
+          "url": "https://eth.blockscout.com/address/0x277757Ca4B34De35037009690d8eACa6767060AC#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x277757Ca4B34De35037009690d8eACa6767060AC"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:45.252Z"
+    },
+    {
+      "name": "ChainlinkCrossRateEthOracle XAU/ETH",
+      "address": "0x9aAb8E6912ea29B490CcBDedfdE165E194EbddFF",
+      "contract": "contracts/oracle/ChainlinkCrossRateEthOracle.sol:ChainlinkCrossRateEthOracle",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as ChainlinkCrossRateEthOracle.",
+          "url": "https://etherscan.io/address/0x9aAb8E6912ea29B490CcBDedfdE165E194EbddFF#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as ChainlinkCrossRateEthOracle.",
+          "url": "https://eth.blockscout.com/address/0x9aAb8E6912ea29B490CcBDedfdE165E194EbddFF#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x9aAb8E6912ea29B490CcBDedfdE165E194EbddFF"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:45.623Z"
+    },
+    {
+      "name": "ChainlinkCrossRateEthOracle XAG/ETH",
+      "address": "0x00C51B89EA0ac7eb369e307b60a8d2948211ebee",
+      "contract": "contracts/oracle/ChainlinkCrossRateEthOracle.sol:ChainlinkCrossRateEthOracle",
+      "status": "verified",
+      "reason": "Verified on Etherscan, Blockscout, Sourcify.",
+      "checks": [
+        {
+          "explorer": "Etherscan",
+          "status": "verified",
+          "detail": "Verified as ChainlinkCrossRateEthOracle.",
+          "url": "https://etherscan.io/address/0x00C51B89EA0ac7eb369e307b60a8d2948211ebee#code"
+        },
+        {
+          "explorer": "Blockscout",
+          "status": "verified",
+          "detail": "Verified as ChainlinkCrossRateEthOracle.",
+          "url": "https://eth.blockscout.com/address/0x00C51B89EA0ac7eb369e307b60a8d2948211ebee#code"
+        },
+        {
+          "explorer": "Sourcify",
+          "status": "verified",
+          "detail": "Full match.",
+          "url": "https://sourcify.dev/server/repo-ui/1/0x00C51B89EA0ac7eb369e307b60a8d2948211ebee"
+        }
+      ],
+      "checkedAt": "2026-06-12T15:53:45.996Z"
+    }
+  ]
+}

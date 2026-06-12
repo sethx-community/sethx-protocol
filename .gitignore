@@ -5,6 +5,7 @@ typechain/
 typechain-types/
 types/
 lib/
+dev/*
 
 # Local Testing and Temporary Coverage
 test/
@@ -21,6 +22,8 @@ scripts/admin/
 !.env.example
 secrets.json
 *.zip
+*.txt
+*.ps1
 
 # Local and Testnet Deployment Records
 deployments/local/

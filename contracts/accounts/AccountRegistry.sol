@@ -75,16 +75,12 @@ contract AccountRegistry is AccessControl {
         emit LendingAccountRegistered(user, account);
     }
 
-    function transferAccountOwner(address account, address newOwner) external {
+    function transferAccountOwner(
+        address account,
+        address newOwner
+    ) external onlyRole(TRANSFER_ROLE) {
         if (account == address(0) || newOwner == address(0)) {
             revert ZeroAddress();
-        }
-
-        // Normal ownership transfers are initiated by the registered Account
-        // itself after its pending owner accepts. Operational transfers, such
-        // as lending-account liquidation, still require TRANSFER_ROLE.
-        if (msg.sender != account) {
-            _checkRole(TRANSFER_ROLE);
         }
 
         address oldOwner = ownerOfAccount[account];
