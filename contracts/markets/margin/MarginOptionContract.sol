@@ -42,7 +42,6 @@ contract MarginOptionContract is AccessControl {
     error InvalidExpiry();
     error InvalidCollateralBps();
     error InvalidOracle();
-    error InvalidOracleMetadata();
     error PriceManagerNotSet();
     error MarketAlreadyExists();
     error MarketNotInitialized();
@@ -406,12 +405,8 @@ contract MarginOptionContract is AccessControl {
         marketKey = computeMarketKey(optionType, oracle, address(0), normalizedStrike, expiry, collateralBps);
     }
 
-    function _tickerFromOracle(address oracle) internal view returns (string memory ticker) {
-        (ticker, , ) = IPriceOracle(oracle).metadata();
-        if (bytes(ticker).length == 0) revert InvalidOracleMetadata();
-    }
-
     function createMarket(
+        string calldata ticker,
         OptionType optionType,
         address oracle,
         uint256 strikePriceInput,
@@ -440,8 +435,6 @@ contract MarginOptionContract is AccessControl {
         address paymentToken = address(0);
         uint8 paymentDec = 18;
         uint8 oracleDec = IPriceOracle(oracle).decimals();
-        // Ticker/display label is oracle-derived so permissionless creators cannot poison metadata.
-        string memory ticker = _tickerFromOracle(oracle);
 
         uint256 strikeInputNorm = _normalizePrice(strikePriceInput, oracleDec, paymentDec);
         uint256 strikeIncrementNorm = tickForStrike(strikeInputNorm);

@@ -30,7 +30,12 @@ type ImportedToken = {
   trades30d?: number;
 };
 
-const DEFAULT_CONTEXTS: OracleContextName[] = ["TRADE_VALUE"];
+const DEFAULT_CONTEXTS: OracleContextName[] = ["GENERAL"];
+
+// This script only registers token trust in PriceManager. It does not approve
+// treasury spending and does not configure valuation oracles. Use GENERAL for
+// identity/trust listing; use TRADE_VALUE only when a trade-price oracle is
+// intentionally configured and usable.
 
 function parseArgs(argv: string[]) {
   const args = new Map<string, string[]>();
@@ -44,30 +49,51 @@ function parseArgs(argv: string[]) {
     }
 
     const key = arg.slice(2);
-    const value =
-      argv[i + 1]?.startsWith("--") || argv[i + 1] === undefined
-        ? "true"
-        : argv[++i];
+    const value = argv[i + 1]?.startsWith("--") || argv[i + 1] === undefined ? "true" : argv[++i];
     const values = args.get(key) ?? [];
     values.push(value);
     args.set(key, values);
   }
 
+  const env = process.env;
+  const envContexts = env.SETHX_TOKEN_CONTEXTS ?? env.TOKEN_WHITELIST_CONTEXTS ?? env.SETHX_TOKEN_CONTEXT ?? env.TOKEN_WHITELIST_CONTEXT;
+  const cliContexts = args.get("context") ?? [];
+  const contextValues = cliContexts.length > 0 ? cliContexts : envContexts ? [envContexts] : [];
+  const positionalJson = positionals.find(isLikelyJsonPath);
+
   return {
     input:
-      args.get("json")?.at(-1) ?? args.get("input")?.at(-1) ?? positionals[0],
+      args.get("json")?.at(-1) ??
+      args.get("input")?.at(-1) ??
+      env.SETHX_TOKEN_JSON ??
+      env.TOKEN_WHITELIST_JSON ??
+      positionalJson,
     deployment:
-      args.get("deployment")?.at(-1) ?? "deployments/local/latest.json",
-    contexts: parseContexts(args.get("context") ?? []),
-    allow: parseBool(args.get("allow")?.at(-1), true),
-    mode: args.get("mode")?.at(-1) ?? "auto",
-    limit: parseNumber(args.get("limit")?.at(-1)),
-    minVolumeUsd: parseNumber(args.get("min-volume-usd")?.at(-1)),
-    minTrades30d: parseNumber(args.get("min-trades-30d")?.at(-1)),
+      args.get("deployment")?.at(-1) ??
+      env.SETHX_DEPLOYMENT_JSON ??
+      env.TOKEN_WHITELIST_DEPLOYMENT ??
+      "deployments/local/latest.json",
+    contexts: parseContexts(contextValues),
+    allow: parseBool(args.get("allow")?.at(-1) ?? env.SETHX_TOKEN_ALLOW ?? env.TOKEN_WHITELIST_ALLOW, true),
+    mode: args.get("mode")?.at(-1) ?? env.SETHX_TOKEN_MODE ?? env.TOKEN_WHITELIST_MODE ?? "auto",
+    limit: parseNumber(args.get("limit")?.at(-1) ?? env.SETHX_TOKEN_LIMIT ?? env.TOKEN_WHITELIST_LIMIT),
+    minVolumeUsd: parseNumber(args.get("min-volume-usd")?.at(-1) ?? env.SETHX_TOKEN_MIN_VOLUME_USD ?? env.TOKEN_WHITELIST_MIN_VOLUME_USD),
+    minTrades30d: parseNumber(args.get("min-trades-30d")?.at(-1) ?? env.SETHX_TOKEN_MIN_TRADES_30D ?? env.TOKEN_WHITELIST_MIN_TRADES_30D),
     out:
       args.get("out")?.at(-1) ??
+      env.SETHX_TOKEN_OUT ??
+      env.TOKEN_WHITELIST_OUT ??
       "deployments/token-whitelist-price-manager-calls.json",
   };
+}
+
+
+function isLikelyJsonPath(value: string | undefined): value is string {
+  if (!value) return false;
+  const normalized = value.replace(/\\/g, "/").toLowerCase();
+  if (normalized === "run") return false;
+  if (normalized.endsWith(".ts") || normalized.endsWith(".js")) return false;
+  return normalized.endsWith(".json");
 }
 
 function parseNumber(value: string | undefined): number | undefined {
@@ -84,16 +110,11 @@ function parseBool(value: string | undefined, fallback: boolean): boolean {
 
 function parseContexts(values: string[]): OracleContextName[] {
   const raw = values.length > 0 ? values : DEFAULT_CONTEXTS;
-  const contexts = raw
-    .flatMap((value) => value.split(","))
-    .map((value) => value.trim().toUpperCase())
-    .filter(Boolean);
+  const contexts = raw.flatMap((value) => value.split(",")).map((value) => value.trim().toUpperCase()).filter(Boolean);
 
   return contexts.map((context) => {
     if (!(context in OracleContext)) {
-      throw new Error(
-        `Unknown oracle context '${context}'. Valid: ${Object.keys(OracleContext).join(", ")}`,
-      );
+      throw new Error(`Unknown oracle context '${context}'. Valid: ${Object.keys(OracleContext).join(", ")}`);
     }
     return context as OracleContextName;
   });
@@ -101,29 +122,29 @@ function parseContexts(values: string[]): OracleContextName[] {
 
 function usage() {
   return [
-    "Usage:",
+    "Usage with Hardhat 3 / safe env mode:",
+    "  SETHX_TOKEN_JSON=./tokens.json SETHX_DEPLOYMENT_JSON=deployments/<env>/latest.json SETHX_TOKEN_CONTEXTS=GENERAL npx hardhat run scripts/dev/whitelist-price-manager-tokens-from-json.ts --network <network>",
+    "",
+    "Usage with CLI args, only if your Hardhat version forwards script args:",
     "  npx hardhat run scripts/dev/whitelist-price-manager-tokens-from-json.ts --network <network> -- --json ./tokens.json --deployment deployments/<env>/latest.json",
     "",
-    "Options:",
-    "  --json <file>              Dune-style JSON export. Also accepts first positional argument.",
-    "  --deployment <file>        Deployment latest.json path. Default: deployments/local/latest.json",
-    "  --context <name[,name]>    Oracle context(s). Default: TRADE_VALUE",
-    "  --allow <true|false>       Allow/block flag. Default: true",
-    "  --mode <auto|send|calldata> auto sends only if signer can admin PriceManager; otherwise writes calldata JSON.",
-    "  --out <file>               Calldata JSON output path. Default: deployments/token-whitelist-price-manager-calls.json",
-    "  --limit <n>                Use at most n rows after filtering.",
-    "  --min-volume-usd <n>       Skip rows below this 30d volume.",
-    "  --min-trades-30d <n>       Skip rows below this 30d trade count.",
+    "Options / env vars:",
+    "  --json <file>              Dune-style JSON export. Env: SETHX_TOKEN_JSON",
+    "  --deployment <file>        Deployment latest.json path. Env: SETHX_DEPLOYMENT_JSON. Default: deployments/local/latest.json",
+    "  --context <name[,name]>    PriceManager trust context(s). Env: SETHX_TOKEN_CONTEXTS. Default: GENERAL",
+    "  --allow <true|false>       Allow/block flag. Env: SETHX_TOKEN_ALLOW. Default: true",
+    "  --mode <auto|send|calldata> Env: SETHX_TOKEN_MODE. auto sends only if signer can admin PriceManager; otherwise writes calldata JSON.",
+    "  --out <file>               Calldata JSON output path. Env: SETHX_TOKEN_OUT. Default: deployments/token-whitelist-price-manager-calls.json",
+    "  --limit <n>                Use at most n rows after filtering. Env: SETHX_TOKEN_LIMIT",
+    "  --min-volume-usd <n>       Skip rows below this 30d volume. Env: SETHX_TOKEN_MIN_VOLUME_USD",
+    "  --min-trades-30d <n>       Skip rows below this 30d trade count. Env: SETHX_TOKEN_MIN_TRADES_30D",
   ].join("\n");
 }
 
 function readDeployment(filePath: string): DeploymentOutput {
   const resolved = path.resolve(filePath);
-  if (!fs.existsSync(resolved))
-    throw new Error(`Deployment file not found: ${resolved}`);
-  const deployment = JSON.parse(
-    fs.readFileSync(resolved, "utf8"),
-  ) as DeploymentOutput;
+  if (!fs.existsSync(resolved)) throw new Error(`Deployment file not found: ${resolved}`);
+  const deployment = JSON.parse(fs.readFileSync(resolved, "utf8")) as DeploymentOutput;
   if (!deployment.addresses || typeof deployment.addresses !== "object") {
     throw new Error("Deployment file must contain an addresses object.");
   }
@@ -132,15 +153,13 @@ function readDeployment(filePath: string): DeploymentOutput {
 
 function requireAddress(deployment: DeploymentOutput, key: string): string {
   const address = deployment.addresses?.[key];
-  if (!address || !ethers.isAddress(address))
-    throw new Error(`Missing deployment address: ${key}`);
+  if (!address || !ethers.isAddress(address)) throw new Error(`Missing deployment address: ${key}`);
   return ethers.getAddress(address);
 }
 
 function readRows(inputPath: string): unknown[] {
   const resolved = path.resolve(inputPath);
-  if (!fs.existsSync(resolved))
-    throw new Error(`Input JSON not found: ${resolved}`);
+  if (!fs.existsSync(resolved)) throw new Error(`Input JSON not found: ${resolved}`);
   const json = JSON.parse(fs.readFileSync(resolved, "utf8"));
   const rows = Array.isArray(json)
     ? json
@@ -150,10 +169,7 @@ function readRows(inputPath: string): unknown[] {
         ? json.rows
         : undefined;
 
-  if (!rows)
-    throw new Error(
-      "Could not find token rows. Expected an array, rows[], or result.rows[].",
-    );
+  if (!rows) throw new Error("Could not find token rows. Expected an array, rows[], or result.rows[].");
   return rows;
 }
 
@@ -164,22 +180,15 @@ function cleanSymbol(value: unknown): string {
 }
 
 function rowToToken(row: any): ImportedToken | undefined {
-  const rawAddress =
-    row?.contract_address ?? row?.address ?? row?.token_address ?? row?.token;
+  const rawAddress = row?.contract_address ?? row?.address ?? row?.token_address ?? row?.token;
   if (!rawAddress || !ethers.isAddress(rawAddress)) return undefined;
 
   const address = ethers.getAddress(rawAddress);
-  const volume = Number(
-    row.volume_30d_usd ?? row.volume_usd ?? row.volume ?? 0,
-  );
-  const trades = Number(
-    row.total_trades_30d ?? row.trades_30d ?? row.trades ?? 0,
-  );
+  const volume = Number(row.volume_30d_usd ?? row.volume_usd ?? row.volume ?? 0);
+  const trades = Number(row.total_trades_30d ?? row.trades_30d ?? row.trades ?? 0);
 
   return {
-    symbol: cleanSymbol(
-      row.token_symbol ?? row.symbol ?? row.ticker ?? "TOKEN",
-    ),
+    symbol: cleanSymbol(row.token_symbol ?? row.symbol ?? row.ticker ?? "TOKEN"),
     address,
     key: address.toLowerCase(),
     category: String(row.qualification_category ?? row.category ?? "Imported"),
@@ -188,26 +197,15 @@ function rowToToken(row: any): ImportedToken | undefined {
   };
 }
 
-function parseTokens(
-  inputPath: string,
-  options: { limit?: number; minVolumeUsd?: number; minTrades30d?: number },
-): ImportedToken[] {
+function parseTokens(inputPath: string, options: { limit?: number; minVolumeUsd?: number; minTrades30d?: number }): ImportedToken[] {
   const seen = new Set<string>();
   const tokens: ImportedToken[] = [];
 
   for (const row of readRows(inputPath)) {
     const token = rowToToken(row);
     if (!token) continue;
-    if (
-      options.minVolumeUsd !== undefined &&
-      (token.volume30dUsd ?? 0) < options.minVolumeUsd
-    )
-      continue;
-    if (
-      options.minTrades30d !== undefined &&
-      (token.trades30d ?? 0) < options.minTrades30d
-    )
-      continue;
+    if (options.minVolumeUsd !== undefined && (token.volume30dUsd ?? 0) < options.minVolumeUsd) continue;
+    if (options.minTrades30d !== undefined && (token.trades30d ?? 0) < options.minTrades30d) continue;
     if (seen.has(token.key)) continue;
 
     seen.add(token.key);
@@ -215,59 +213,33 @@ function parseTokens(
     if (options.limit !== undefined && tokens.length >= options.limit) break;
   }
 
-  if (tokens.length === 0)
-    throw new Error("No valid token rows found after filtering.");
+  if (tokens.length === 0) throw new Error("No valid token rows found after filtering.");
   return tokens;
 }
 
-async function canAdmin(
-  priceManager: any,
-  signerAddress: string,
-): Promise<boolean> {
+async function canAdmin(priceManager: any, signerAddress: string): Promise<boolean> {
   const adminRole = await priceManager.DEFAULT_ADMIN_ROLE();
   return priceManager.hasRole(adminRole, signerAddress);
 }
 
-async function maybeLocalTimelockSigner(
-  priceManager: any,
-  deployment: DeploymentOutput,
-) {
+async function maybeLocalTimelockSigner(priceManager: any, deployment: DeploymentOutput) {
   const timelock = deployment.addresses?.sethxTimelock;
   const chainId = String(deployment.chainId ?? "");
-  if (!timelock || !ethers.isAddress(timelock) || chainId !== "31337")
-    return undefined;
+  if (!timelock || !ethers.isAddress(timelock) || chainId !== "31337") return undefined;
   if (!(await canAdmin(priceManager, timelock))) return undefined;
 
   await ethers.provider.send("hardhat_impersonateAccount", [timelock]);
-  await ethers.provider.send("hardhat_setBalance", [
-    timelock,
-    "0x56BC75E2D63100000",
-  ]); // 100 ETH
+  await ethers.provider.send("hardhat_setBalance", [timelock, "0x56BC75E2D63100000"]); // 100 ETH
 
   return {
     signer: await ethers.getSigner(timelock),
     mode: `local impersonated timelock ${timelock}`,
-    stop: async () =>
-      ethers.provider.send("hardhat_stopImpersonatingAccount", [timelock]),
+    stop: async () => ethers.provider.send("hardhat_stopImpersonatingAccount", [timelock]),
   };
 }
 
-function buildCalldata(
-  priceManager: any,
-  priceManagerAddress: string,
-  tokens: ImportedToken[],
-  contexts: OracleContextName[],
-  allow: boolean,
-) {
-  const calls: Array<{
-    target: string;
-    value: string;
-    data: string;
-    label: string;
-    token: string;
-    context: OracleContextName;
-    allow: boolean;
-  }> = [];
+function buildCalldata(priceManager: any, priceManagerAddress: string, tokens: ImportedToken[], contexts: OracleContextName[], allow: boolean) {
+  const calls: Array<{ target: string; value: string; data: string; label: string; token: string; context: OracleContextName; allow: boolean }> = [];
 
   for (const token of tokens) {
     for (const contextName of contexts) {
@@ -275,11 +247,8 @@ function buildCalldata(
       calls.push({
         target: priceManagerAddress,
         value: "0",
-        data: priceManager.interface.encodeFunctionData(
-          "setTokenAllowedForContext",
-          [token.address, context, allow],
-        ),
-        label: `${allow ? "Allow" : "Block"} ${token.symbol} ${contextName}`,
+        data: priceManager.interface.encodeFunctionData("setTokenAllowedForContext", [token.address, context, allow]),
+        label: `${allow ? "Trust" : "Untrust"} ${token.symbol} ${contextName}`,
         token: token.address,
         context: contextName,
         allow,
@@ -301,6 +270,7 @@ async function main() {
   const args = parseArgs(process.argv);
   if (!args.input) {
     console.error(usage());
+    console.error('\nMissing token JSON. In PowerShell, run: $env:SETHX_TOKEN_JSON="./tokens.json" before running Hardhat.');
     process.exitCode = 1;
     return;
   }
@@ -311,10 +281,7 @@ async function main() {
 
   const deployment = readDeployment(args.deployment);
   const priceManagerAddress = requireAddress(deployment, "priceManager");
-  const priceManager = await ethers.getContractAt(
-    "PriceManager",
-    priceManagerAddress,
-  );
+  const priceManager = await ethers.getContractAt("PriceManager", priceManagerAddress);
   const tokens = parseTokens(args.input, args);
   const [deployer] = await ethers.getSigners();
 
@@ -323,13 +290,7 @@ async function main() {
   console.log(`[whitelist-json] Contexts: ${args.contexts.join(", ")}`);
   console.log(`[whitelist-json] Allow: ${args.allow}`);
 
-  const calls = buildCalldata(
-    priceManager,
-    priceManagerAddress,
-    tokens,
-    args.contexts,
-    args.allow,
-  );
+  const calls = buildCalldata(priceManager, priceManagerAddress, tokens, args.contexts, args.allow);
 
   if (args.mode === "calldata") {
     await writeCalldataOutput(args.out, {
@@ -343,16 +304,10 @@ async function main() {
     return;
   }
 
-  let admin:
-    | { signer: any; mode: string; stop: () => Promise<unknown> }
-    | undefined;
+  let admin: { signer: any; mode: string; stop: () => Promise<unknown> } | undefined;
 
   if (await canAdmin(priceManager, deployer.address)) {
-    admin = {
-      signer: deployer,
-      mode: `deployer admin ${deployer.address}`,
-      stop: async () => undefined,
-    };
+    admin = { signer: deployer, mode: `deployer admin ${deployer.address}`, stop: async () => undefined };
   } else {
     admin = await maybeLocalTimelockSigner(priceManager, deployment);
   }
@@ -383,26 +338,15 @@ async function main() {
     for (const token of tokens) {
       for (const contextName of args.contexts) {
         const context = OracleContext[contextName];
-        const current = await priceManager.tokenAllowedForContext(
-          token.address,
-          context,
-        );
+        const current = await priceManager.tokenAllowedForContext(token.address, context);
         if (current === args.allow) {
-          console.log(
-            `skip ${token.symbol} ${token.address} ${contextName}: already ${args.allow ? "allowed" : "blocked"}`,
-          );
+          console.log(`skip ${token.symbol} ${token.address} ${contextName}: already ${args.allow ? "trusted" : "untrusted"}`);
           continue;
         }
 
-        const tx = await connected.setTokenAllowedForContext(
-          token.address,
-          context,
-          args.allow,
-        );
+        const tx = await connected.setTokenAllowedForContext(token.address, context, args.allow);
         const receipt = await tx.wait();
-        console.log(
-          `ok ${token.symbol} ${token.address} ${contextName}: ${args.allow ? "allowed" : "blocked"} gas=${receipt?.gasUsed?.toString() ?? "?"}`,
-        );
+        console.log(`ok ${token.symbol} ${token.address} ${contextName}: ${args.allow ? "trusted" : "untrusted"} gas=${receipt?.gasUsed?.toString() ?? "?"}`);
       }
     }
   } finally {

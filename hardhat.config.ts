@@ -1,9 +1,16 @@
+import { config as loadEnv } from "dotenv";
+
+loadEnv({ path: ".env" });
+loadEnv({ path: ".env.mainnet", override: true });
+
 import { defineConfig } from "hardhat/config";
 import hardhatToolboxMochaEthers from "@nomicfoundation/hardhat-toolbox-mocha-ethers";
+import hardhatVerify from "@nomicfoundation/hardhat-verify";
 
 const sepoliaRpcUrl = process.env.SEPOLIA_RPC_URL;
 const mainnetRpcUrl = process.env.MAINNET_RPC_URL;
 const deployerPrivateKey = process.env.DEPLOYER_PRIVATE_KEY;
+const etherscanApiKey = process.env.ETHERSCAN_API_KEY;
 
 const accounts = deployerPrivateKey ? [deployerPrivateKey] : [];
 
@@ -39,7 +46,7 @@ if (mainnetRpcUrl) {
 }
 
 export default defineConfig({
-  plugins: [hardhatToolboxMochaEthers],
+  plugins: [hardhatToolboxMochaEthers, hardhatVerify],
 
   solidity: {
     profiles: {
@@ -69,4 +76,14 @@ export default defineConfig({
   },
 
   networks,
+
+  // --- REALIGNED HARDHAT 3 VERIFICATION PATTERN ---
+  verify: {
+    etherscan: {
+      apiKey: etherscanApiKey || "",
+    },
+    sourcify: {
+      enabled: true,
+    },
+  },
 });
